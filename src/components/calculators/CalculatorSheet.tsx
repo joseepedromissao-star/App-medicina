@@ -75,18 +75,38 @@ export const CalculatorSheet: React.FC<{
     return STANDARD_DRUG_PRESETS;
   }, [filterDrugId]);
 
-  const [selectedPresetId, setSelectedPresetId] = useState<string>(
-    presetsAvailable[0]?.id || 'nora_padrao'
+  const hasPresetForFilter = !filterDrugId || presetsAvailable.length > 0;
+
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(
+    presetsAvailable[0]?.id || null
   );
 
-  const currentPreset = useMemo<StandardInfusionPreset>(() => {
-    return (
-      STANDARD_DRUG_PRESETS.find((p) => p.id === selectedPresetId) ||
-      STANDARD_DRUG_PRESETS[0]
-    );
-  }, [selectedPresetId]);
+  // Sync selectedPresetId whenever presetsAvailable changes
+  useEffect(() => {
+    if (presetsAvailable.length > 0) {
+      if (!selectedPresetId || !presetsAvailable.some((p) => p.id === selectedPresetId)) {
+        setSelectedPresetId(presetsAvailable[0].id);
+      }
+    } else {
+      setSelectedPresetId(null);
+    }
+  }, [presetsAvailable, selectedPresetId]);
 
-  const [targetDose, setTargetDose] = useState<number>(currentPreset.startingDose);
+  const currentPreset = useMemo<StandardInfusionPreset | null>(() => {
+    if (!selectedPresetId) {
+      return presetsAvailable[0] || null;
+    }
+    return presetsAvailable.find((p) => p.id === selectedPresetId) || null;
+  }, [selectedPresetId, presetsAvailable]);
+
+  const [targetDose, setTargetDose] = useState<number>(currentPreset?.startingDose || 0);
+
+  // Update target dose default when preset changes
+  useEffect(() => {
+    if (currentPreset) {
+      setTargetDose(currentPreset.startingDose);
+    }
+  }, [currentPreset]);
 
   // Reverse pump calculation state
   const [pumpRateInput, setPumpRateInput] = useState<number>(26.3);
@@ -94,7 +114,7 @@ export const CalculatorSheet: React.FC<{
   // Update target dose default when preset changes
   const handleSelectPreset = (presetId: string) => {
     setSelectedPresetId(presetId);
-    const p = STANDARD_DRUG_PRESETS.find((pr) => pr.id === presetId);
+    const p = presetsAvailable.find((pr) => pr.id === presetId);
     if (p) setTargetDose(p.startingDose);
   };
 
@@ -103,6 +123,9 @@ export const CalculatorSheet: React.FC<{
     resultado: InfusionResult | null;
     erros: string[];
   }>(() => {
+    if (!currentPreset) {
+      return { resultado: null, erros: [] };
+    }
     try {
       const res = calculateInfusionRate(
         currentPreset,
@@ -123,6 +146,9 @@ export const CalculatorSheet: React.FC<{
     resultado: DoseFromRateResult | null;
     erros: string[];
   }>(() => {
+    if (!currentPreset) {
+      return { resultado: null, erros: [] };
+    }
     try {
       const res = calculateDoseFromRate(
         currentPreset,
@@ -378,202 +404,216 @@ export const CalculatorSheet: React.FC<{
             </p>
           </div>
 
-          {/* Preset Selector */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-              Selecione o Medicamento & Diluição Padronizada:
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {presetsAvailable.map((preset) => {
-                const isSelected = preset.id === selectedPresetId;
-                const conc = concentrationOf(preset);
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => handleSelectPreset(preset.id)}
-                    className={`p-3 rounded-xl text-left border transition cursor-pointer ${
-                      isSelected
-                        ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/40 dark:border-sky-500 ring-2 ring-sky-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-bold text-xs text-slate-900 dark:text-white">
-                        {preset.name}
-                      </span>
-                      <ValidationStatusBadge status={preset.validacaoClinica} showIcon={false} />
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-1">
-                      {preset.amount} {preset.amountUnit} em {preset.diluentVolumeMl} mL ({conc.value} {conc.unit})
-                    </div>
-                  </button>
-                );
-              })}
+          {!hasPresetForFilter || !currentPreset ? (
+            <div className="p-6 rounded-2xl border border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20 text-center space-y-2">
+              <AlertTriangle className="w-8 h-8 text-amber-600 mx-auto" />
+              <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                Sem calculadora de dose validada para este fármaco
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                O fármaco do protocolo ainda não possui preset de infusão contínua cadastrado ou validado no registro de fármacos.
+              </p>
             </div>
-          </div>
-
-          {/* High Alert Banner if applicable */}
-          {currentPreset.isHighAlert && (
-            <AlertaAltaVigilancia
-              customTitle={currentPreset.name}
-              maxDoseText={`${currentPreset.usualMaxDose} ${currentPreset.unit}`}
-              warningNotes={[currentPreset.highAlertNotes]}
-              antidote={currentPreset.extravasationAntidote || currentPreset.toxicityAntidote}
-            />
-          )}
-
-          {/* Direct Calculation: Dose -> Rate */}
-          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700 pb-3">
-              <div className="flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-sky-600" />
-                <span className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                  Dose Alvo Desejada:
-                </span>
-              </div>
-              <span className="text-xs text-slate-500">
-                Faixa usual: <span className="font-mono font-semibold">{currentPreset.usualMinDose}–{currentPreset.usualMaxDose} {currentPreset.unit}</span>
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+          ) : (
+            <>
+              {/* Preset Selector */}
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  Dose Alvo ({currentPreset.unit}):
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Selecione o Medicamento & Diluição Padronizada:
                 </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={targetDose}
-                    onChange={(e) => setTargetDose(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono text-base font-bold text-sky-700 dark:text-sky-300"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {presetsAvailable.map((preset) => {
+                    const isSelected = preset.id === selectedPresetId;
+                    const conc = concentrationOf(preset);
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => handleSelectPreset(preset.id)}
+                        className={`p-3 rounded-xl text-left border transition cursor-pointer ${
+                          isSelected
+                            ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/40 dark:border-sky-500 ring-2 ring-sky-500/20'
+                            : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-bold text-xs text-slate-900 dark:text-white">
+                            {preset.name}
+                          </span>
+                          <ValidationStatusBadge status={preset.validacaoClinica} showIcon={false} />
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-1">
+                          {preset.amount} {preset.amountUnit} em {preset.diluentVolumeMl} mL ({conc.value} {conc.unit})
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {currentPreset.requiresWeight && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    Peso do Paciente (kg):
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={patient.weightKg}
-                    onChange={(e) => updatePatient({ weightKg: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono text-base font-bold text-slate-800 dark:text-slate-200"
-                  />
-                </div>
+              {/* High Alert Banner if applicable */}
+              {currentPreset.isHighAlert && (
+                <AlertaAltaVigilancia
+                  customTitle={currentPreset.name}
+                  maxDoseText={`${currentPreset.usualMaxDose} ${currentPreset.unit}`}
+                  warningNotes={[currentPreset.highAlertNotes]}
+                  antidote={currentPreset.extravasationAntidote || currentPreset.toxicityAntidote}
+                />
               )}
 
-              {/* Result display */}
-              <div className="p-3 rounded-xl bg-sky-100/70 dark:bg-sky-950/50 border border-sky-300 dark:border-sky-800 flex flex-col justify-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">
-                  Programar BIC (Bomba):
-                </span>
-                <div className="flex items-baseline gap-1.5 mt-0.5">
-                  <span className="font-mono text-3xl font-extrabold text-sky-900 dark:text-sky-100">
-                    {isConfirmed && infusionResult ? infusionResult.rateMlHr : '---'}
-                  </span>
-                  <span className="text-xs font-bold text-sky-800 dark:text-sky-300">
-                    mL/h
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Infusion Errors or Warnings */}
-            {infusionError.length > 0 && (
-              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-xs text-rose-900 dark:text-rose-200">
-                <div className="font-semibold flex items-center gap-1 mb-1">
-                  <AlertTriangle className="w-4 h-4 text-rose-600" />
-                  <span>Cálculo Recusado:</span>
-                </div>
-                <ul className="list-disc list-inside">
-                  {infusionError.map((e, idx) => (
-                    <li key={idx}>{e}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {infusionResult && infusionResult.warnings.length > 0 && (
-              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-1">
-                {infusionResult.warnings.map((w, i) => (
-                  <div key={i} className="flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    <span>{w}</span>
+              {/* Direct Calculation: Dose -> Rate */}
+              <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-sky-600" />
+                    <span className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                      Dose Alvo Desejada:
+                    </span>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {/* Como calculei button */}
-            {isConfirmed && infusionResult && (
-              <div className="flex justify-between items-center pt-2">
-                <span className="text-xs text-slate-500 font-mono">
-                  {describeDilution(currentPreset)}
-                </span>
-                <ComoCalculei explanation={infusionResult.explanation} />
-              </div>
-            )}
-          </div>
-
-          {/* Reverse Calculation: Rate in pump -> Dose using calculateDoseFromRate */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-            <div className="flex items-center gap-2">
-              <ArrowRightLeft className="w-4 h-4 text-purple-600" />
-              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                Cálculo Reverso (Verificação à Beira-Leito a Partir do Visor da Bomba)
-              </h4>
-            </div>
-            <p className="text-xs text-slate-500">
-              Informe a taxa atual no visor da bomba (mL/h) para conferir qual dose o paciente está recebendo em <span className="font-mono font-semibold">{currentPreset.unit}</span>.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  Taxa Atual na BIC (mL/h):
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0.1"
-                  value={pumpRateInput}
-                  onChange={(e) => setPumpRateInput(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono text-base font-bold text-purple-700 dark:text-purple-300"
-                />
-              </div>
-
-              <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300 block">
-                    Dose Efetiva Recebida:
-                  </span>
-                  <span className="font-mono text-2xl font-extrabold text-purple-900 dark:text-purple-100">
-                    {isConfirmed && reverseResult ? reverseResult.dose : '---'}
-                  </span>
-                  <span className="text-xs font-medium text-purple-700 dark:text-purple-300 ml-1">
-                    {reverseResult ? reverseResult.unit : currentPreset.unit}
+                  <span className="text-xs text-slate-500">
+                    Faixa usual: <span className="font-mono font-semibold">{currentPreset.usualMinDose}–{currentPreset.usualMaxDose} {currentPreset.unit}</span>
                   </span>
                 </div>
 
-                {isConfirmed && reverseResult && (
-                  <ComoCalculei explanation={reverseResult.explanation} variant="subtle" />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      Dose Alvo ({currentPreset.unit}):
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={targetDose}
+                        onChange={(e) => setTargetDose(Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono text-base font-bold text-sky-700 dark:text-sky-300"
+                      />
+                    </div>
+                  </div>
+
+                  {currentPreset.requiresWeight && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                        Peso do Paciente (kg):
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={patient.weightKg}
+                        onChange={(e) => updatePatient({ weightKg: Number(e.target.value) })}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono text-base font-bold text-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+                  )}
+
+                  {/* Result display */}
+                  <div className="p-3 rounded-xl bg-sky-100/70 dark:bg-sky-950/50 border border-sky-300 dark:border-sky-800 flex flex-col justify-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">
+                      Programar BIC (Bomba):
+                    </span>
+                    <div className="flex items-baseline gap-1.5 mt-0.5">
+                      <span className="font-mono text-3xl font-extrabold text-sky-950 dark:text-sky-100">
+                        {isConfirmed && infusionResult ? infusionResult.rateMlHr : '---'}
+                      </span>
+                      <span className="text-xs font-bold text-sky-800 dark:text-sky-300">
+                        mL/h
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Infusion Errors or Warnings */}
+                {infusionError.length > 0 && (
+                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-xs text-rose-900 dark:text-rose-200">
+                    <div className="font-semibold flex items-center gap-1 mb-1">
+                      <AlertTriangle className="w-4 h-4 text-rose-600" />
+                      <span>Cálculo Recusado:</span>
+                    </div>
+                    <ul className="list-disc list-inside">
+                      {infusionError.map((e, idx) => (
+                        <li key={idx}>{e}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {infusionResult && infusionResult.warnings.length > 0 && (
+                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                    {infusionResult.warnings.map((w, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>{w}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Como calculei button */}
+                {isConfirmed && infusionResult && (
+                  <div className="flex justify-between items-center pt-2">
+                    <span className="text-xs text-slate-500 font-mono">
+                      {describeDilution(currentPreset)}
+                    </span>
+                    <ComoCalculei explanation={infusionResult.explanation} />
+                  </div>
                 )}
               </div>
-            </div>
 
-            {reverseError.length > 0 && (
-              <div className="p-2.5 rounded-xl bg-rose-50 text-rose-800 text-xs border border-rose-200">
-                {reverseError.join(' | ')}
+              {/* Reverse Calculation: Rate in pump -> Dose using calculateDoseFromRate */}
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="flex items-center gap-2">
+                  <ArrowRightLeft className="w-4 h-4 text-purple-600" />
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                    Cálculo Reverso (Verificação à Beira-Leito a Partir do Visor da Bomba)
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Informe a taxa atual no visor da bomba (mL/h) para conferir qual dose o paciente está recebendo em <span className="font-mono font-semibold">{currentPreset.unit}</span>.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      Taxa Atual na BIC (mL/h):
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0.1"
+                      value={pumpRateInput}
+                      onChange={(e) => setPumpRateInput(Number(e.target.value))}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono text-base font-bold text-purple-700 dark:text-purple-300"
+                    />
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300 block">
+                        Dose Efetiva Recebida:
+                      </span>
+                      <span className="font-mono text-2xl font-extrabold text-purple-900 dark:text-purple-100">
+                        {isConfirmed && reverseResult ? reverseResult.dose : '---'}
+                      </span>
+                      <span className="text-xs font-medium text-purple-700 dark:text-purple-300 ml-1">
+                        {reverseResult ? reverseResult.unit : currentPreset.unit}
+                      </span>
+                    </div>
+
+                    {isConfirmed && reverseResult && (
+                      <ComoCalculei explanation={reverseResult.explanation} variant="subtle" />
+                    )}
+                  </div>
+                </div>
+
+                {reverseError.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-rose-50 text-rose-800 text-xs border border-rose-200">
+                    {reverseError.join(' | ')}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       )}
     </div>

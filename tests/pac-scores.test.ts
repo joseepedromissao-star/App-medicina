@@ -101,19 +101,29 @@ describe('Escores de Pneumonia Adquirida na Comunidade (PAC) & Triagem', () => {
       expect(rr?.options?.length).toBe(5);
     });
 
-    it('estratificação correta de risco: baixo (0-4), moderado (5-6) e alto (≥7)', () => {
+    it('estratificação correta de risco: 0 (12h), baixo 1-4 (4-6h), médio 5-6 (urgente) e alto ≥7 (emergência)', () => {
       const interp = news2?.interpretations || [];
-      expect(interp.length).toBe(3);
+      expect(interp.length).toBe(4);
+      // 0 pontos: mínimo a cada 12h
       expect(interp[0].min).toBe(0);
-      expect(interp[0].max).toBe(4);
-      expect(interp[0].severity).toBe('low');
+      expect(interp[0].max).toBe(0);
+      expect(interp[0].recommendation).toContain('12 horas');
 
-      expect(interp[1].min).toBe(5);
-      expect(interp[1].max).toBe(6);
-      expect(interp[1].severity).toBe('moderate');
+      // 1-4 pontos: mínimo a cada 4-6h
+      expect(interp[1].min).toBe(1);
+      expect(interp[1].max).toBe(4);
+      expect(interp[1].recommendation).toContain('4 a 6 horas');
 
-      expect(interp[2].min).toBe(7);
-      expect(interp[2].severity).toBe('critical');
+      // 5-6 pontos: resposta urgente
+      expect(interp[2].min).toBe(5);
+      expect(interp[2].max).toBe(6);
+      expect(interp[2].severity).toBe('moderate');
+      expect(interp[2].recommendation).toContain('urgente');
+
+      // >= 7 pontos: emergência
+      expect(interp[3].min).toBe(7);
+      expect(interp[3].severity).toBe('critical');
+      expect(interp[3].recommendation).toContain('Emergência médica');
     });
   });
 });

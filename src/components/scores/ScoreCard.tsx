@@ -12,6 +12,7 @@ import {
 import type { ScoreDef, ScoreInterpretationRange } from '../../../types/clinical';
 import { ResultBadge } from '../ui/ResultBadge';
 import { usePatient } from '../../context/PatientContext';
+import { sumScore, interpretScore } from '../../../lib/scores-engine';
 
 interface ScoreCardProps {
   score: ScoreDef;
@@ -20,7 +21,7 @@ interface ScoreCardProps {
 }
 
 export const ScoreCard: React.FC<ScoreCardProps> = ({ score, onScoreChange, className = '' }) => {
-  const { patient } = usePatient();
+  const { patient, isConfirmed } = usePatient();
 
   // Manual responses: record criterionId -> value (0 or points)
   const [manualResponses, setManualResponses] = useState<Record<string, number>>({});
@@ -121,22 +122,29 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({ score, onScoreChange, clas
     setManualResponses({});
   };
 
-  // Check unanswered count: only manually answered criteria count as fully answered
-  const totalCriteria = score.criteria.length;
-  const answeredCriteriaCount = score.criteria.filter((c) => manualResponses[c.id] !== undefined).length;
-  const unansweredCount = totalCriteria - answeredCriteriaCount;
-  const isComplete = unansweredCount === 0;
+  // Use pure scoring engine
+  const calculation = useMemo(() => {
+    return sumScore(score, manualResponses, patient, isConfirmed);
+  }, [score, manualResponses, patient, isConfirmed]);
 
-  // Calculate score total from manual responses
-  const totalScore = Object.values(manualResponses).reduce((acc, val) => acc + (val || 0), 0);
+  const {
+    rawPoints,
+    demographicPoints,
+    totalScore,
+    isComplete,
+    unansweredCount,
+    answeredCount,
+    totalCriteria,
+  } = calculation;
 
-  // Stratification interpretation only when all criteria are answered
-  const currentInterpretation = useMemo(() => {
-    if (!isComplete) return undefined;
-    return score.interpretations.find(
-      (inter) => totalScore >= inter.min && totalScore <= inter.max
-    );
-  }, [isComplete, score.interpretations, totalScore]);
+  // Stratification interpretation using pure engine
+  const { currentInterpretation, isolatedThreeWarning } = useMemo(() => {
+    const res = interpretScore(score, totalScore, manualResponses, isComplete);
+    return {
+      currentInterpretation: res.interpretation,
+      isolatedThreeWarning: res.isolatedThreeParamWarning,
+    };
+  }, [score, totalScore, manualResponses, isComplete]);
 
   useEffect(() => {
     if (onScoreChange) {
@@ -187,10 +195,15 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({ score, onScoreChange, clas
               </span>
               {!isComplete && (
                 <span className="text-[10px] font-sans text-amber-600 dark:text-amber-400 font-semibold">
-                  (parcial)
+                  (incompleto)
                 </span>
               )}
             </div>
+            {score.id === 'psi_port' && isConfirmed && (
+              <span className="text-[10px] text-sky-700 dark:text-sky-300 font-medium block mt-0.5">
+                Idade/sexo: +{demographicPoints}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -201,16 +214,61 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({ score, onScoreChange, clas
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
             <span>
-              <strong>Pontuação INCOMPLETA:</strong> faltam {unansweredCount} critério(s) para estratificação.
+              <strong>Pontuação INCOMPLETA:</strong>{' '}
+              {score.id === 'psi_port' && !isConfirmed ? (
+                <span>
+                  O PSI requer confirmação do perfil do paciente (idade e sexo) para somar os pontos demográficos basilares.
+                </span>
+              ) : (
+                <span>faltam {unansweredCount} critério(s) para estratificação.</span>
+              )}
             </span>
           </div>
           <span className="text-[11px] font-mono text-amber-700 dark:text-amber-300 hidden sm:inline">
-            {answeredCriteriaCount}/{totalCriteria} respondidos
+            {answeredCount}/{totalCriteria} respondidos
           </span>
         </div>
       )}
 
-      {/* Criteria Selection List with 3 states (não avaliado / não / sim) */}
+      {/* Demographic points banner for PSI */}
+      {score.id === 'psi_port' && (
+        <div className="p-3 rounded-xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 text-xs text-sky-900 dark:text-sky-200 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Info className="w-4 h-4 text-sky-600 shrink-0" />
+            <span>
+              <strong>Pontos Demográficos (Idade/Sexo):</strong>{' '}
+              {isConfirmed ? (
+                <span>
+                  Paciente {patient.sex === 'M' ? 'homem' : 'mulher'}, {patient.age} anos:{' '}
+                  <strong>+{demographicPoints} pontos</strong>{' '}
+                  {patient.sex === 'M' ? '(idade em anos)' : '(idade − 10)'}.
+                </span>
+              ) : (
+                <span className="text-amber-700 dark:text-amber-400 font-medium">
+                  Perfil não confirmado. Confirme o paciente para computar os pontos demográficos (+idade/sexo).
+                </span>
+              )}
+            </span>
+          </div>
+          {isConfirmed && (
+            <span className="px-2 py-0.5 rounded-md bg-sky-600 text-white font-mono font-bold text-[11px]">
+              +{demographicPoints} pts
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Isolated Three Warning Banner for NEWS2 */}
+      {isolatedThreeWarning && (
+        <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-xs text-rose-900 dark:text-rose-200 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>
+            <strong>ALERTA DE SEGURANÇA (NEWS2):</strong> {isolatedThreeWarning}. Paciente exige avaliação médica urgente mesmo com pontuação total baixa.
+          </span>
+        </div>
+      )}
+
+      {/* Criteria Selection List */}
       <div className="space-y-3">
         {score.criteria.map((crit) => {
           const manualValue = manualResponses[crit.id];
@@ -230,58 +288,74 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({ score, onScoreChange, clas
                     : 'border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-950/10'
                 }`}
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="space-y-0.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5 max-w-lg">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white">
                         {crit.label}
                       </span>
-                      <span className="text-xs font-mono font-bold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/50 px-2 py-0.2 rounded-md">
-                        +{crit.points} pt
+                      <span className="text-[11px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">
+                        +{crit.points} {crit.points === 1 ? 'pt' : 'pts'}
                       </span>
                     </div>
                     {crit.description && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
                         {crit.description}
                       </p>
                     )}
                   </div>
 
-                  {/* 3-State Action Buttons: Não (0) | Sim (+points) */}
-                  <div className="flex items-center gap-2 shrink-0">
+                  {/* 3-State Radio Group: Não Avaliado | Não (0) | Sim (+pts) */}
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl self-start sm:self-center shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = { ...manualResponses };
+                        delete next[crit.id];
+                        setManualResponses(next);
+                      }}
+                      className={`px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer ${
+                        !hasManual
+                          ? 'bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-100 font-bold shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      Não avaliado
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleSetResponse(crit.id, 0)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
                         hasManual && manualValue === 0
-                          ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 border-slate-800'
-                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100'
+                          ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
                     >
+                      <X className="w-3 h-3 text-slate-400" />
                       Não (0)
                     </button>
-
                     <button
                       type="button"
                       onClick={() => handleSetResponse(crit.id, crit.points)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
                         hasManual && manualValue > 0
-                          ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
-                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-sky-50'
+                          ? 'bg-sky-600 text-white shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
                     >
+                      <Check className="w-3 h-3" />
                       Sim (+{crit.points})
                     </button>
                   </div>
                 </div>
 
-                {/* Profile Suggestion Callout if not manually answered yet */}
+                {/* Profile Suggestion Banner */}
                 {isSuggested && (
-                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-amber-200/60 dark:border-amber-800/60 text-[11px] text-amber-800 dark:text-amber-300">
+                  <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-300 dark:border-amber-800/80 flex items-center justify-between gap-2 text-xs text-amber-900 dark:text-amber-200">
                     <div className="flex items-center gap-1.5">
-                      <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <HelpCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                       <span>
-                        Sugerido pelo perfil — confirmar: <strong>{suggestion.reason}</strong> (resultado: {suggestion.value > 0 ? 'Sim' : 'Não'})
+                        Sugerido pelo perfil — confirmar: <strong>{suggestion.reason}</strong> (+{suggestion.value} pts)
                       </span>
                     </div>
                     <button
@@ -297,56 +371,68 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({ score, onScoreChange, clas
             );
           }
 
-          // Options type (e.g. HEART score dropdowns/options)
+          // Options / Select Criterion (ex: NEWS2)
           return (
             <div
               key={crit.id}
               className={`p-3.5 rounded-xl border transition-all duration-150 space-y-2 ${
                 hasManual
-                  ? 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900'
+                  ? 'border-sky-400 dark:border-sky-700 bg-sky-50/30 dark:bg-sky-950/20'
                   : 'border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-950/10'
               }`}
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {crit.label}
-                </span>
-                {hasManual ? (
-                  <span className="text-xs font-mono font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950 px-2 py-0.5 rounded-md">
-                    +{manualValue} pt(s)
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">
+                    {crit.label}
                   </span>
-                ) : (
-                  <span className="text-[11px] text-amber-700 dark:text-amber-300 font-semibold">
+                  {crit.description && (
+                    <p className="text-[11px] text-slate-500">{crit.description}</p>
+                  )}
+                </div>
+                {!hasManual && (
+                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
                     Não avaliado
                   </span>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-1.5">
                 {crit.options?.map((opt) => {
-                  const isSelected = hasManual && manualValue === opt.value;
+                  const isOptSelected = hasManual && manualValue === opt.value;
                   return (
                     <button
-                      key={opt.value}
+                      key={opt.label}
                       type="button"
                       onClick={() => handleSetResponse(crit.id, opt.value)}
-                      className={`px-2.5 py-2 rounded-lg text-xs font-medium text-left transition border cursor-pointer ${
-                        isSelected
-                          ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
-                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                      className={`p-2 rounded-xl text-left border text-xs transition cursor-pointer ${
+                        isOptSelected
+                          ? 'border-sky-600 bg-sky-600 text-white shadow-xs font-semibold'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                       }`}
                     >
-                      <div className="font-semibold">{opt.label}</div>
-                      <div className="text-[10px] opacity-80 font-mono">+{opt.value} pontos</div>
+                      <div className="flex items-center justify-between gap-1">
+                        <span>{opt.label}</span>
+                        <span
+                          className={`font-mono text-[11px] px-1.5 py-0.2 rounded font-bold ${
+                            isOptSelected
+                              ? 'bg-sky-700 text-white'
+                              : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
+                          +{opt.value}
+                        </span>
+                      </div>
                     </button>
                   );
                 })}
               </div>
 
+              {/* Profile Suggestion Banner */}
               {isSuggested && (
-                <div className="flex items-center justify-between gap-2 pt-1 border-t border-amber-200/60 dark:border-amber-800/60 text-[11px] text-amber-800 dark:text-amber-300">
+                <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-300 dark:border-amber-800/80 flex items-center justify-between gap-2 text-xs text-amber-900 dark:text-amber-200">
                   <div className="flex items-center gap-1.5">
-                    <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <HelpCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                     <span>
                       Sugerido pelo perfil — confirmar: <strong>{suggestion.reason}</strong> (+{suggestion.value} pts)
                     </span>
@@ -393,13 +479,19 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({ score, onScoreChange, clas
       {/* Score Reference & Formula Notes */}
       <div className="border-t border-slate-100 dark:border-slate-800 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-400 dark:text-slate-500">
         <div className="flex items-center gap-1.5">
-          <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+          <BookOpen className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           <span>{score.reference}</span>
         </div>
         <div className="text-slate-400">
           População-alvo: {score.targetPopulation}
         </div>
       </div>
+      {score.formulaNotes && (
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+          <span className="font-semibold text-slate-600 dark:text-slate-300">Regra de cálculo: </span>
+          {score.formulaNotes}
+        </div>
+      )}
     </div>
   );
 };

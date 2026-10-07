@@ -213,11 +213,9 @@ function personalizeItem(item: ConductActionItem, p: PatientData, m: PatientDeri
     };
   }
 
-  // 4) Sem regime no registro: não inventar dose
-  if (!rx.calculatedDose?.trim()) {
-    return blockItem(item, 'fármaco sem regime validado no registro');
-  }
-  return { ...item, drugPrescription: { ...rx, safetyDoubleCheck: doubleCheck } };
+  // 4) Sem regime no registro: NUNCA usar dose digitada no texto do protocolo
+  //    (doses só nascem do registro de fármacos e dos presets, que têm fonte e status de validação).
+  return blockItem(item, 'fármaco sem regime validado no registro');
 }
 
 export function generateStratifiedConduct(
@@ -302,4 +300,3 @@ export function generateStratifiedConduct(
     clipboardSummary: L.join('\n'),
   };
 }
-

@@ -8,7 +8,7 @@
 ## 1. Princípios de Segurança Clínica e Governança
 
 1. **Fonte Única de Verdade**:
-   - Todas as decisões clínicas, pontos de corte de escores, doses e tempos-alvo baseiam-se **exclusivamente nas diretrizes oficiais vigentes** emitidas pelas sociedades médicas de referência internacional e nacional (AHA, ERC, ESC, ATS, IDSA, EAU, ADA, EASD, SCCM, ESICM, SBC, SBPT).
+   - **Conteúdo em validação: rascunho não revisado, não use para decisões clínicas**. As propostas de decisões clínicas, pontos de corte de escores, doses e tempos-alvo têm como meta diretrizes oficiais de sociedades médicas de referência internacional e nacional (AHA, ERC, ESC, ATS, IDSA, EAU, ADA, EASD, SCCM, ESICM, SBC, SBPT), dependendo de revisão médica formal antes de qualquer uso.
    - Proibida a citação de livros-texto desatualizados, autores individuais, blogs ou portais de notícias.
 2. **Separação Rígida entre Lógica e Interface**:
    - Nenhum dado clínico vive disperso dentro de componentes React. Os parâmetros residem em schemas tipados e versionados (`data/scores.ts`, `data/mock-protocols.ts`, `data/farmacos.ts`).

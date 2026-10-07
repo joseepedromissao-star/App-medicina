@@ -297,6 +297,16 @@ describe('Conduta - cálculo de doses', () => {
     expect(item(r, 'enox').drugPrescription!.calculatedDose).toContain('24 h');
     expect(item(r, 'enox').detail).toContain('AJUSTE RENAL');
   });
+  it('dose digitada no protocolo para fármaco fora do registro é DESCARTADA (ex.: "100 mg")', () => {
+    const fasesAlteplase = fases();
+    fasesAlteplase[0].items = [
+      { id: 'alt', title: 'Alteplase', detail: 'Trombólise', priority: 'emergency',
+        drugPrescription: { drugId: 'alteplase', drugName: 'Alteplase', calculatedDose: '100 mg', route: 'EV', dilution: '100 mg em 100 mL', safetyDoubleCheck: false, targetParameter: '-' } },
+    ];
+    const r = generateStratifiedConduct(paciente(), 'x', 'Teste', fasesAlteplase);
+    expect(item(r, 'alt').drugPrescription!.calculatedDose).toContain('NÃO CALCULADO');
+    expect(item(r, 'alt').drugPrescription!.calculatedDose).not.toContain('100 mg');
+  });
   it('fármaco sem regime no registro NÃO sai com dose em branco', () => {
     const r = generateStratifiedConduct(paciente(), 'x', 'Teste', fases());
     expect(item(r, 'desc').drugPrescription!.calculatedDose).toContain('NÃO CALCULADO');

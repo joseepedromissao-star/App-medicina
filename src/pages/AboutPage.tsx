@@ -63,10 +63,10 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onBack, onNavigateAudit })
             <BookOpen className="w-5 h-5" />
           </div>
           <h2 className="font-bold text-slate-900 dark:text-white text-base">
-            Diretrizes Oficiais Vigentes
+            Diretrizes de Referência (Em Validação)
           </h2>
           <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-            Fonte única de verdade clínica ancorada exclusivamente nas recomendações oficiais das principais sociedades médicas (AHA 2025, ERC 2025, ESC 2023/2024, SSC 2026, EAU 2026, ADA/EASD 2024, SBC 2025). Livros e opiniões individuais não substituem evidências indexadas.
+            Conteúdo em validação: rascunho não revisado, não use para decisões clínicas. O projeto busca ancoragem em guidelines oficiais de sociedades médicas de referência (AHA, ERC, ESC, SSC, EAU, ADA, SBC), mas todo dado deve ser conferido manualmente contra a fonte primária.
           </p>
         </div>
 

@@ -190,10 +190,10 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     category: 'Estratificação de Risco',
     item: 'CURB-65: ponto de corte e unidade da ureia',
     guidelineReference: 'ATS/IDSA 2019 e SBPT (conferir qual a instituição adota)',
-    status: 'ATENCAO_CRITICA',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
     notes:
-      'scores.ts mostra "ureia > 50 mg/dL" no rótulo, mas descreve "BUN > 19 mg/dL / > 7 mmol/L" no mesmo critério. Esses valores não coincidem (7 mmol/L equivale a cerca de 42 mg/dL de ureia). Pacientes com ureia entre 42 e 50 mg/dL ficam classificados de forma diferente conforme o texto lido.',
-    acaoNecessaria: 'Escolher UM ponto de corte e UMA unidade (mg/dL de ureia ou BUN), citar a fonte e corrigir scores.ts.',
+      'scores.ts agora usa ureia > 42 mg/dL (> 7 mmol/L) no rótulo e na descrição, eliminando a inconsistência. A atribuição "padronizado BTS/SBPT" não foi confirmada: em materiais brasileiros costuma aparecer 50 mg/dL. Se a decisão foi do Gemini e não do preceptor, ela ainda precisa de validação.',
+    acaoNecessaria: 'O preceptor confirma o ponto de corte único (42 ou 50 mg/dL) e a fonte, e o mesmo valor deve ser usado no CURB-65 e no critério de ureia do ATS/IDSA.',
     arquivo: 'data/scores.ts',
   },
   {
@@ -211,10 +211,10 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     category: 'Estratificação de Risco',
     item: 'Sepse: qSOFA como único score de triagem',
     guidelineReference: 'Surviving Sepsis Campaign 2026',
-    status: 'ATENCAO_CRITICA',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
     notes:
-      'A guideline sugere NEWS/NEWS2, MEWS ou SIRS em vez de qSOFA isolado. Em scores.ts, qSOFA 0–1 aparece como "baixo risco" e ≥ 2 aciona protocolo imediato, o que pode tranquilizar indevidamente (sensibilidade baixa). O protocolo agora inclui triagem por NEWS2/MEWS/SIRS (item cs-0), mas esses escores ainda não estão em scores.ts.',
-    acaoNecessaria: 'Implementar NEWS2, MEWS e SIRS em scores.ts e ajustar a interpretação do qSOFA ("negativo não exclui sepse").',
+      'O NEWS2 foi implementado e o qSOFA agora informa que resultado negativo não exclui sepse e que o NEWS2 é a triagem preferencial. Pendências: MEWS e SIRS ainda não existem em scores.ts, e as regras de interpretação do NEWS2 estão incompletas (ver audit-news2-rules).',
+    acaoNecessaria: 'Implementar MEWS e SIRS e concluir as regras do NEWS2.',
     arquivo: 'data/scores.ts',
   },
   {
@@ -521,6 +521,154 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     notes: 'generateStratifiedConduct usa só o perfil do paciente e o protocolo; o resultado do CURB-65, por exemplo, não muda o local de tratamento sugerido nem a gravidade do esquema.',
     acaoNecessaria: 'Na Fase 1, passar os resultados dos scores ao motor e escolher o ramo da conduta (ambulatorial, enfermaria, UTI) por regra.',
     arquivo: 'lib/conduta-engine.ts, data/mock-protocols.ts',
+  },
+
+  // ------------- Achados da revisão da Fase 1 (PAC: scores e protocolo) -------------
+  {
+    id: 'audit-psi-age',
+    category: 'Estratificação de Risco',
+    item: 'PSI/PORT sem pontos de idade e sexo',
+    guidelineReference: 'Pneumonia Severity Index (regra de Fine) — conferir na publicação original',
+    status: 'ATENCAO_CRITICA',
+    notes:
+      'O PSI soma a idade em anos (homens) ou a idade menos 10 (mulheres) antes dos demais critérios. O escore gerado não tem esse componente: um homem de 85 anos sem outras alterações (PSI real 85, classe III) aparece com 0 ponto e "Baixo Risco, tratamento ambulatorial seguro". O teste existente só confere a estrutura (número de critérios e faixas), não a pontuação.',
+    acaoNecessaria: 'Somar automaticamente os pontos demográficos a partir de idade e sexo do paciente confirmado (ou marcar o escore como incompleto sem paciente confirmado) e criar testes com valores de referência.',
+    arquivo: 'data/scores.ts, src/components/scores/ScoreCard.tsx',
+  },
+  {
+    id: 'audit-news2-rules',
+    category: 'Estratificação de Risco',
+    item: 'NEWS2: regra de parâmetro isolado e frequência de monitorização',
+    guidelineReference: 'Royal College of Physicians, NEWS2 (2017) — conferir no documento',
+    status: 'ATENCAO_CRITICA',
+    notes:
+      'As pontuações das 7 variáveis conferem com o NEWS2. Faltam: (1) pontuação 3 em um único parâmetro exige resposta urgente, mas o motor soma e classifica só por total, então um paciente só com PAS 85 aparece como "baixo risco, monitorização a cada 12 h"; (2) a faixa de 1 a 4 pontos exibe a frequência de 12 h, que é a de pontuação 0; (3) a Escala 2 de SpO2 (hipercapnia crônica) não existe e isso deve estar avisado.',
+    acaoNecessaria: 'Implementar a regra do parâmetro isolado, separar as faixas 0 e 1–4 com as frequências corretas e avisar sobre a Escala 2.',
+    arquivo: 'data/scores.ts, src/components/scores/ScoreCard.tsx',
+  },
+  {
+    id: 'audit-ui-calc-fallback',
+    category: 'Dose de Fármaco',
+    item: 'Calculadora da página de PAC cai silenciosamente no preset de noradrenalina',
+    guidelineReference: 'Segurança do paciente (erro de medicação)',
+    status: 'ATENCAO_CRITICA',
+    notes:
+      'O protocolo de PAC passa "ceftriaxona" como fármaco da calculadora, mas não há preset com esse id; o seletor volta ao preset de noradrenalina. Uma página de pneumonia passa a oferecer uma calculadora de vasopressor.',
+    acaoNecessaria: 'Sem preset para o fármaco, mostrar "Sem calculadora de dose validada para este fármaco" e não cair em outro preset.',
+    arquivo: 'src/components/calculators/CalculatorSheet.tsx, src/pages/ProtocolPage.tsx',
+  },
+  {
+    id: 'audit-pac-drugs-unregistered',
+    category: 'Dose de Fármaco',
+    item: 'Protocolo de PAC lista 4 antimicrobianos que não estão no registro',
+    guidelineReference: 'ATS/IDSA 2019 e bula',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'associatedDrugs referencia ceftriaxona, azitromicina, amoxicilina e levofloxacino, mas data/farmacos.ts continua só com 4 fármacos (noradrenalina, dobutamina, vasopressina, enoxaparina). Não foi inventada nenhuma dose, o que está correto, mas os ids ficaram soltos.',
+    acaoNecessaria: 'Manter associatedDrugs vazio até haver regime confirmado, ou cadastrar os fármacos com fonte e validação pendente.',
+    arquivo: 'data/mock-protocols.ts, data/farmacos.ts',
+  },
+  {
+    id: 'audit-scores-tests',
+    category: 'Segurança do Software',
+    item: 'Testes dos novos scores conferem só a estrutura, não a pontuação',
+    guidelineReference: 'Qualidade de software',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'tests/pac-scores.test.ts verifica contagem de critérios e faixas, e por isso não detectou a ausência da idade no PSI nem as regras faltantes do NEWS2. Não existe função pura de soma e interpretação para testar: o cálculo fica dentro do ScoreCard.',
+    acaoNecessaria: 'Extrair sumScore e interpretScore para lib/ e testar com casos clínicos de referência (PSI, NEWS2, CURB-65, ATS/IDSA).',
+    arquivo: 'tests/pac-scores.test.ts',
+  },
+  {
+    id: 'audit-scores-provenance',
+    category: 'Conteúdo Clínico',
+    item: 'Fontes e afirmações sem lastro nos novos scores e protocolo',
+    guidelineReference: 'Regra do projeto: apenas guidelines oficiais, sem autores individuais',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'Os novos escores citam autores individuais (Fine, Metlay, Lim). O ATS/IDSA traz "mortalidade > 20% a 50%" sem fonte, e o CURB-65 diz "padronizado BTS/SBPT". Além disso, o item pac-1 do protocolo passou de VERIFICAR para CONFIRMADA sem decisão registrada do revisor.',
+    acaoNecessaria: 'Trocar referências por nome da guideline, remover ou fundamentar as afirmações e devolver pac-1 para VERIFICAR até a assinatura do preceptor.',
+    arquivo: 'data/scores.ts, data/mock-protocols.ts',
+  },
+
+  // --------- Achados da revisão das Fases 2 a 5 (geradas sem revisão intermediária) ---------
+  {
+    id: 'audit-phases-runahead',
+    category: 'Conteúdo Clínico',
+    item: 'Fases 2 a 5 geradas de uma vez, sem revisão: 10 protocolos novos e 14 escores novos',
+    guidelineReference: 'Processo do projeto (uma fase por vez, com revisão antes de "continuar")',
+    status: 'ATENCAO_CRITICA',
+    notes:
+      'O Gemini avançou do piloto de PAC até a página "Sobre" sem aguardar revisão. Entraram TEP, PCR, taquiarritmias, bradiarritmias, edema agudo de pulmão, emergência hipertensiva, HAP/VAP, pielonefrite, CAD/EHH e distúrbios hidroeletrolíticos. Nenhum desses conteúdos foi revisado por médico. Uma amostra de cerca de 30 doses de adulto (epinefrina, amiodarona, atropina, adenosina, alteplase, furosemida, nitroglicerina e outras) parecia coerente com referências habituais de suporte avançado de vida, mas não foi conferida contra as edições de 2025/2026.',
+    acaoNecessaria: 'Revisão médica protocolo por protocolo, conferindo cada dose, ponto de corte e tempo-alvo com o texto da guideline antes de qualquer uso.',
+    arquivo: 'data/mock-protocols.ts, data/scores.ts',
+  },
+  {
+    id: 'audit-status-self-certified',
+    category: 'Conteúdo Clínico',
+    item: 'Recomendações auto-rotuladas como CONFIRMADA sem conferência',
+    guidelineReference: 'Processo de validação clínica',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'O Gemini marcou 63 recomendações e 27 guidelines como CONFIRMADA, e a interface exibe "Guideline conferida" para elas. Ninguém conferiu. O patch 4 devolve para VERIFICAR 60 recomendações e 20 guidelines, mantendo CONFIRMADA apenas em 3 recomendações (triagem de sepse da SSC 2026, duração de 3 a 5 dias e regras de corticoide da ATS 2025) e em 7 guidelines cuja existência foi conferida em fonte secundária.',
+    acaoNecessaria: 'O revisor muda cada item para CONFIRMADA somente após conferir o texto original.',
+    arquivo: 'data/mock-protocols.ts',
+  },
+  {
+    id: 'audit-engine-authored-dose',
+    category: 'Dose de Fármaco',
+    item: 'Dose digitada no texto do protocolo passava direto para a prescrição (ex.: alteplase "100 mg")',
+    guidelineReference: 'Prompt v2: doses só do registro de fármacos',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'O motor só bloqueava fármacos fora do registro quando o campo de dose estava vazio. O protocolo de TEP trazia "100 mg" e "100 mg em 100 mL" digitados, que eram exibidos como prescrição calculada. Agora o motor ignora qualquer dose digitada e devolve "NÃO CALCULADO" para fármaco sem regime no registro.',
+    acaoNecessaria: 'Cadastrar alteplase e demais fármacos no registro, com fonte e validação, antes de esperar que saiam calculados.',
+    testeAutomatizado: ['Conduta - cálculo de doses (dose digitada é descartada)'],
+    arquivo: 'lib/conduta-engine.ts',
+  },
+  {
+    id: 'audit-drugs-text-only',
+    category: 'Dose de Fármaco',
+    item: 'Doses dos protocolos novos existem só em texto livre; o registro continua com 4 fármacos',
+    guidelineReference: 'Prompt v2: doses centralizadas no registro, com fonte e status',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'Adrenalina, amiodarona, atropina, adenosina, alteplase, heparina não fracionada, insulina, potássio, solução salina a 3%, antimicrobianos e outros aparecem apenas dentro de textos de conduta, sem fonte por dose, sem ajuste renal e sem alerta de alta vigilância. Além disso, as páginas de alguns protocolos oferecem a calculadora de fármacos do registro (por exemplo, noradrenalina na página de CAD/EHH) mesmo sem relação com a terapia da patologia.',
+    acaoNecessaria: 'Decidir quais fármacos entram no registro e quais ficam apenas como texto de referência, e restringir a calculadora de cada página aos fármacos pertinentes.',
+    arquivo: 'data/mock-protocols.ts, data/farmacos.ts',
+  },
+  {
+    id: 'audit-pediatric-scope',
+    category: 'Segurança do Software',
+    item: 'Protocolo de PCR inclui doses pediátricas, mas o software valida apenas adultos',
+    guidelineReference: 'AHA 2025 e ERC 2025 (suporte avançado de vida pediátrico)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'Os motores recusam idade < 18 anos e peso < 30 kg. As doses pediátricas (por exemplo, por kg e com dose máxima) existem só como texto e não têm calculadora, validação de peso pediátrico nem faixas de plausibilidade próprias.',
+    acaoNecessaria: 'Decidir se o escopo é adulto, e então retirar o conteúdo pediátrico, ou criar um modo pediátrico com validação e testes próprios.',
+    arquivo: 'data/mock-protocols.ts, lib/validation.ts',
+  },
+  {
+    id: 'audit-phases-tests',
+    category: 'Segurança do Software',
+    item: 'Testes das Fases 1 a 5 (54 testes) verificam cadastro e estrutura, não a pontuação clínica',
+    guidelineReference: 'Qualidade de software',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'Os testes conferem presença de escores, número de critérios e faixas de interpretação. Nenhum calcula uma pontuação a partir de respostas e confere o resultado, por isso não detectam erros como a falta de pontos de idade no PSI. Todos passam, o que transmite uma segurança que não existe.',
+    acaoNecessaria: 'Criar funções puras de soma e interpretação e testes com casos clínicos de referência para cada escore.',
+    arquivo: 'tests/*.test.ts',
+  },
+  {
+    id: 'audit-docs-claims',
+    category: 'Conteúdo Clínico',
+    item: 'CHANGELOG-CLINICO.md e página "Sobre" afirmam fonte exclusiva em guidelines oficiais e rastreabilidade completa',
+    guidelineReference: 'Honestidade sobre o estado de validação',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'Os textos afirmam que o conteúdo se baseia "exclusivamente" nas diretrizes oficiais e descrevem a fonte como única e verificada. Enquanto o conteúdo estiver sem revisão médica, essas afirmações não podem ser feitas ao público.',
+    acaoNecessaria: 'Reescrever como "em validação": conteúdo de rascunho, não revisado, não para uso clínico.',
+    arquivo: 'CHANGELOG-CLINICO.md, src/pages/AboutPage.tsx',
   },
 ];
 
