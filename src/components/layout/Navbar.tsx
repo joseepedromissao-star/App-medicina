@@ -13,6 +13,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
+import { usePediatric } from '../../context/PediatricContext';
 
 interface NavbarProps {
   onOpenCommandPalette: () => void;
@@ -20,7 +21,8 @@ interface NavbarProps {
   onNavigateHome: () => void;
   onNavigateAudit: () => void;
   onNavigateTools: () => void;
-  currentPage: 'home' | 'protocolo' | 'auditoria' | 'ferramentas';
+  onNavigatePediatric: () => void;
+  currentPage: 'home' | 'protocolo' | 'auditoria' | 'ferramentas' | 'pediatria';
   darkMode: boolean;
   onToggleDarkMode: () => void;
   isInstallable: boolean;
@@ -34,6 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigateHome,
   onNavigateAudit,
   onNavigateTools,
+  onNavigatePediatric,
   currentPage,
   darkMode,
   onToggleDarkMode,
@@ -42,6 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isOnline,
 }) => {
   const { patient, metrics, isValid, isConfirmed, activePresetLabel } = usePatient();
+  const { isPediatricConfirmed, pediatricPatient } = usePediatric();
 
   return (
     <header className="sticky top-0 z-40 w-full glass-panel border-b">
@@ -102,6 +106,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               Ferramentas Rápidas
+            </button>
+            <button
+              type="button"
+              onClick={onNavigatePediatric}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                currentPage === 'pediatria'
+                  ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200'
+                  : 'text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300'
+              }`}
+            >
+              <span>PCR Pediátrica</span>
             </button>
             <button
               type="button"

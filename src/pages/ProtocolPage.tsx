@@ -375,10 +375,19 @@ export const ProtocolPage: React.FC<ProtocolPageProps> = ({
             <h3 className="text-xl font-bold font-serif text-slate-900 dark:text-white">
               8. Calculadora de Medicamentos & Doses por Perfil
             </h3>
-            <CalculatorSheet
-              initialTab="infusao"
-              filterDrugId={protocolo.associatedDrugs[0]}
-            />
+            {protocolo.associatedDrugs && protocolo.associatedDrugs.length > 0 ? (
+              <CalculatorSheet
+                initialTab="infusao"
+                filterDrugId={protocolo.associatedDrugs[0]}
+              />
+            ) : (
+              <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm flex items-center gap-3 text-slate-600 dark:text-slate-400">
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                <span className="text-sm font-medium">
+                  Sem calculadora de dose validada para este protocolo
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}

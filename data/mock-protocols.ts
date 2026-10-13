@@ -15,6 +15,7 @@ import type { Patologia } from '../types/clinical';
 const REVISADO_EM = '2026-10-06';
 const SSC_2026 = 'Surviving Sepsis Campaign: Adult Guidelines 2026';
 const ATS_2025 = 'ATS 2025 (atualização parcial da diretriz de PAC)';
+const SBPT_2009 = 'Diretrizes brasileiras para PAC em adultos imunocompetentes (SBPT 2009)';
 const ATS_IDSA_2019 = 'ATS/IDSA 2019 (PAC em adultos)';
 
 export const CLINICAL_PROTOCOLS: Patologia[] = [
@@ -298,7 +299,7 @@ export const CLINICAL_PROTOCOLS: Patologia[] = [
     guidelines: [
       { nome: 'Atualização parcial da diretriz de PAC (4 questões)', sociedade: 'ATS', ano: 2025, status: 'CONFIRMADA' },
       { nome: 'Diagnosis and Treatment of Adults with Community-acquired Pneumonia', sociedade: 'ATS/IDSA', ano: 2019, status: 'CONFIRMADA' },
-      { nome: 'Diretriz brasileira de PAC (edição vigente)', sociedade: 'SBPT/SBI', ano: 2018, status: 'VERIFICAR' },
+      { nome: 'Diretrizes brasileiras para pneumonia adquirida na comunidade em adultos imunocompetentes', sociedade: 'SBPT', ano: 2009, status: 'CONFIRMADA' },
     ],
     revisadoEm: REVISADO_EM,
     validacaoClinica: 'PENDENTE',
@@ -328,7 +329,7 @@ export const CLINICAL_PROTOCOLS: Patologia[] = [
         'NEWS2 ≥ 7 pontos (alto risco clínico)',
       ],
     },
-    associatedScores: ['curb_65', 'ats_idsa_pac_grave', 'psi_port', 'news2'],
+    associatedScores: ['curb_65', 'crb_65', 'ats_idsa_pac_grave', 'psi_port', 'news2'],
     scoresPlanejados: [],
     associatedDrugs: [], // sem regime no registro (não calculados): ceftriaxona, azitromicina, amoxicilina, levofloxacino
     conductPhases: [
@@ -340,11 +341,11 @@ export const CLINICAL_PROTOCOLS: Patologia[] = [
             id: 'pac-1',
             title: 'Estratificar a Gravidade e Definir Local de Tratamento',
             detail:
-              'CURB-65 (confusão, ureia > 42 mg/dL, FR ≥ 30, PAS < 90 ou PAD ≤ 60, idade ≥ 65) e/ou PSI para o local de tratamento (ambulatorial vs enfermaria); critérios ATS/IDSA 2019 de PAC grave (1 maior ou ≥ 3 menores) para indicação de UTI; triagem de sepse com NEWS2.',
+              'CURB-65 conforme a SBPT 2009 (confusão mental com teste mental abreviado ≤ 8, ureia > 50 mg/dL, FR ≥ 30, PAS < 90 ou PAD ≤ 60, idade ≥ 65): 0–1 ponto = provável tratamento ambulatorial; 2 = considerar internação; 3 ou mais = tratar como PAC grave (4–5: avaliar UTI). O escore é auxiliar: a decisão cabe ao médico, considerando comorbidades, SpO2 < 90%, extensão radiológica, fatores sociais e econômicos e aceitabilidade da via oral. Sem ureia disponível, usar o CRB-65 (mesma fonte, sem o critério de ureia). PSI e critérios ATS/IDSA de PAC grave permanecem como ferramentas adicionais; triagem de sepse com NEWS2.',
             priority: 'emergency',
             timing: '< 15 min',
-            fonte: ATS_IDSA_2019,
-            statusRecomendacao: 'VERIFICAR',
+            fonte: `${SBPT_2009}; ${ATS_IDSA_2019}`,
+            statusRecomendacao: 'CONFIRMADA',
           },
           {
             id: 'pac-2',
@@ -556,7 +557,7 @@ export const CLINICAL_PROTOCOLS: Patologia[] = [
     specialty: 'Cardiologia',
     cid10: ['I46.0', 'I46.9'],
     guidelines: [
-      { nome: 'AHA Guidelines for CPR and Emergency Cardiovascular Care', sociedade: 'AHA', ano: 2025, status: 'VERIFICAR' },
+      { nome: 'AHA Guidelines for CPR and Emergency Cardiovascular Care', sociedade: 'AHA', ano: 2025, status: 'CONFIRMADA' },
       { nome: 'ERC Guidelines for Resuscitation: Adult and Paediatric Life Support', sociedade: 'ERC', ano: 2025, status: 'VERIFICAR' },
     ],
     revisadoEm: REVISADO_EM,
@@ -596,20 +597,20 @@ export const CLINICAL_PROTOCOLS: Patologia[] = [
             id: 'pcr-1',
             title: 'Compressões Torácicas de Alta Qualidade',
             detail:
-              'Frequência de 100 a 120 compressões por minuto. Profundidade de 5 a 6 cm em adultos (1/3 do diâmetro AP em pediatria: ~4 cm em bebês e ~5 cm em crianças). Permitir o retorno completo do tórax após cada compressão. Minimizar pausas (< 10 segundos). Revezar socorrista a cada 2 minutos.',
+              'Frequência de 100 a 120 compressões por minuto. Profundidade de 5 a 6 cm em adultos (1/3 do diâmetro AP em pediatria: ~4 cm em bebês e ~5 cm em crianças). Permitir o retorno completo do tórax após cada compressão. Em bebês e crianças, as pausas nas compressões devem ser inferiores a 10 segundos. Em bebês, comprimir com a base de uma das mãos ou com a técnica dos 2 polegares circundando o tórax; a técnica de 2 dedos não é mais recomendada. Revezar socorrista a cada 2 minutos. [Frequência, profundidade e revezamento não constam do documento de destaques: conferir no texto completo.]',
             priority: 'emergency',
             timing: 'Imediato (< 10s)',
-            fonte: 'AHA 2025 / ERC 2025',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), p. 11 (pausas e técnica em bebês); demais itens: texto completo da AHA 2025',
             statusRecomendacao: 'VERIFICAR',
           },
           {
             id: 'pcr-2',
             title: 'Desfibrilador e Checagem de Ritmo',
             detail:
-              'Instalar pás ou eletrodos adesivos. Se Ritmo Chocável (FV / TV sem pulso): aplicar 1 choque imediatamente (Bifásico: 120–200 J; Pediátrico: 2 J/kg inicial). Reiniciar RCP imediatamente por 2 minutos sem checar pulso logo após o choque.',
+              'Instalar pás ou eletrodos adesivos. Em adultas, pode ser aceitável ajustar a posição do sutiã em vez de removê-lo. Se Ritmo Chocável (FV / TV sem pulso): aplicar 1 choque imediatamente (Bifásico: 120–200 J; Pediátrico: 2 J/kg inicial). Reiniciar RCP imediatamente por 2 minutos sem checar pulso logo após o choque. A utilidade da desfibrilação com mudança de vetor ou da desfibrilação sequencial dupla após 3 ou mais choques consecutivos não foi estabelecida. [Energias e intervalo de 2 minutos não constam do documento de destaques: conferir no texto completo.]',
             priority: 'emergency',
             timing: '< 2 min',
-            fonte: 'AHA 2025 / ERC 2025',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), pp. 13 e 15–16 (pás, mudança de vetor e dupla sequencial)',
             statusRecomendacao: 'VERIFICAR',
           },
         ],
@@ -622,40 +623,40 @@ export const CLINICAL_PROTOCOLS: Patologia[] = [
             id: 'pcr-3',
             title: 'Via Aérea Avançada e Monitorização de EtCO2',
             detail:
-              'Intubação orotraqueal ou dispositivo supraglótico com confirmação mandatória por capnografia em onda. Após via aérea avançada instalada: compressões contínuas sem pausas para ventilação e 1 ventilação a cada 6 segundos (10 ventilações/min). Se EtCO2 < 10 mmHg persistente, otimizar compressões.',
+              'Intubação orotraqueal ou dispositivo supraglótico com confirmação mandatória por capnografia em onda. Antes da via aérea avançada, ciclos de 30 compressões e 2 ventilações são aceitáveis. Evitar hipoventilação e hiperventilação (volume suficiente para elevação visível do tórax). Após via aérea avançada instalada: compressões contínuas sem pausas para ventilação e 1 ventilação a cada 6 segundos (10 ventilações/min). Se EtCO2 < 10 mmHg persistente, otimizar compressões. [Taxa com via aérea avançada e limiar de EtCO2 não constam do documento de destaques: conferir no texto completo.]',
             priority: 'emergency',
             timing: '2 - 5 min',
-            fonte: 'AHA 2025',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), pp. 12–13 (ventilação e relação 30:2)',
             statusRecomendacao: 'VERIFICAR',
           },
           {
             id: 'pcr-4',
             title: 'Vasopressor durante a RCP: Adrenalina (Epinefrina)',
             detail:
-              'Adulto: Adrenalina 1 mg EV/IO a cada 3 a 5 minutos. Em ritmos NÃO chocáveis (AESP/Assistolia): administrar o mais rápido possível (logo no primeiro ciclo). Em ritmos chocáveis (FV/TV): administrar após o 2º choque. Pediátrico: 0,01 mg/kg EV/IO (0,1 mL/kg da solução 1:10.000, máx 1 mg).',
+              'Adulto: Adrenalina 1 mg EV/IO a cada 3 a 5 minutos. Acesso: tentar primeiro o acesso IV; o IO é aceitável se o IV não for bem-sucedido ou viável. Em ritmos NÃO chocáveis (AESP/Assistolia): administrar o mais rápido possível (logo no primeiro ciclo). Em ritmos chocáveis (FV/TV): é aceitável administrar após a falha das tentativas iniciais de desfibrilação [momento exato no algoritmo completo: conferir]. Vasopressina isolada ou com epinefrina não oferece vantagem sobre a epinefrina isolada. Pediátrico: 0,01 mg/kg EV/IO (0,1 mL/kg da solução 1:10.000, máx 1 mg); em bebês e crianças com ritmo inicial não chocável, é aceitável dar a primeira dose o mais rápido possível. [Dose de adulto e intervalo não constam do documento de destaques.]',
             priority: 'emergency',
             timing: 'A cada 3-5 min',
-            fonte: 'AHA 2025 / ERC 2025',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), p. 16 (acesso, vasopressores) e p. 14 (epinefrina pediátrica); dose: algoritmo PALS 2025',
             statusRecomendacao: 'VERIFICAR',
           },
           {
             id: 'pcr-5',
             title: 'Antiarrítmico em FV / TV sem pulso refratária',
             detail:
-              'Após o 3º choque desfibrilatório: Amiodarona 300 mg EV/IO em bólus rápido (segunda dose de 150 mg se FV/TV persistir no ciclo seguinte); OU Lidocaína 1 a 1,5 mg/kg EV/IO inicial (segunda dose 0,5 a 0,75 mg/kg). Pediátrico: Amiodarona 5 mg/kg (máx 300 mg) ou Lidocaína 1 mg/kg.',
+              'Após o 3º choque desfibrilatório: Amiodarona 300 mg EV/IO em bólus rápido (segunda dose de 150 mg se FV/TV persistir no ciclo seguinte); OU Lidocaína 1 a 1,5 mg/kg EV/IO inicial (segunda dose 0,5 a 0,75 mg/kg). Pediátrico: Amiodarona 5 mg/kg (máx 300 mg) ou Lidocaína 1 mg/kg. Em adultos, o benefício de betabloqueadores, bretílio, procainamida ou sotalol na FV/TV sem pulso refratária à desfibrilação é incerto. [Doses de adulto e momento não constam do documento de destaques: conferir no texto completo.]',
             priority: 'emergency',
             timing: 'Após 3º choque',
-            fonte: 'AHA 2025 / ERC 2025',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), p. 16 (outros antiarrítmicos); doses: texto completo da AHA 2025',
             statusRecomendacao: 'VERIFICAR',
           },
           {
             id: 'pcr-6',
             title: 'Rastreamento Sistemático das Causas Reversíveis (5H e 5T)',
             detail:
-              'Investigar e corrigir ativamente: Hipóxia, Hipovolemia, Hidrogênio (acidose), Hipo/Hipercalemia, Hipotermia; Tensão pneumotórax (descompressão torácica), Tamponamento pericárdico (POCUS/pericardiocentese), Toxinas (antídotos), Trombose pulmonar (alteplase de resgate) e Trombose coronária.',
+              'Investigar e corrigir ativamente: Hipóxia, Hipovolemia, Hidrogênio (acidose), Hipo/Hipercalemia, Hipotermia; Tensão pneumotórax (descompressão torácica), Tamponamento pericárdico (POCUS/pericardiocentese), Toxinas (antídotos), Trombose pulmonar (alteplase de resgate) e Trombose coronária. Situações especiais da AHA 2025: na suspeita de hipercalemia, a eficácia do cálcio IV na PCR não está bem estabelecida e não deve desviar a atenção da RCP, da desfibrilação e da epinefrina; na suspeita de overdose de opioides, a naloxona é aceitável se não interferir na RCP padrão; na gestação, preparar o parto de ressuscitação para concluí-lo em 5 minutos, com deslocamento uterino para a esquerda; na hipotermia grave, considerar reaquecimento com ECLS; na hipertermia, resfriar por imersão em água gelada, com queda de pelo menos 0,15 °C/min; em adultos e crianças com LVAD e perfusão prejudicada, executar compressões torácicas.',
             priority: 'emergency',
             timing: 'Durante todo o atendimento',
-            fonte: 'AHA 2025 / ERC 2025',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), pp. 19–21 (situações especiais)',
             statusRecomendacao: 'VERIFICAR',
           },
         ],
@@ -668,31 +669,28 @@ export const CLINICAL_PROTOCOLS: Patologia[] = [
             id: 'pcr-7',
             title: 'Metas Hemodinâmicas e Ventilatórias Pós-RCE',
             detail:
-              'Meta de PAM ≥ 65 mmHg (titular noradrenalina em bomba de infusão se PAS < 90 mmHg). Ventilação: manter SpO2 92–98% (evitar hiperóxia tóxica com PaO2 excessiva) e normocapnia (PaCO2 35–45 mmHg / EtCO2 35–40 mmHg).',
+              'Meta de PAM ≥ 65 mmHg (valor mínimo), evitando hipotensão após o RCE; iniciar ou ajustar vasopressores e/ou volume conforme necessário (não há evidência suficiente para recomendar um vasopressor específico). Oxigenação: manter FiO2 a 100% até medir a SpO2 de forma confiável e depois ajustar gradualmente para SpO2 de 90% a 98% (PaO2 de 60 a 105 mmHg). Ventilação: PaCO2 de 35 a 45 mmHg, salvo acidemia grave. Evitar hipoglicemia (glicose < 70 mg/dL) e hiperglicemia (glicose > 180 mg/dL).',
             priority: 'high',
-            timing: '< 30 min pós-RCE',
-            fonte: 'AHA 2025 / ERC 2025',
-            statusRecomendacao: 'VERIFICAR',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), pp. 17–18 (Figura 7, algoritmo de cuidados pós-PCR em adultos)',
+            statusRecomendacao: 'CONFIRMADA',
           },
           {
             id: 'pcr-8',
             title: 'ECG de 12 derivações e CATE de Emergência',
             detail:
-              'Realizar ECG de 12 derivações imediatamente após o RCE. Se supra de ST presente ou forte suspeita de SCA/choque cardiogênico: acionar coronariografia invasiva de emergência com angiografia coronária percutânea prioritária.',
+              'Realizar ECG de 12 derivações logo após o RCE. Considerar intervenção cardíaca de emergência (angiografia coronária e/ou suporte circulatório mecânico) se houver elevação persistente do segmento ST, choque cardiogênico, arritmias ventriculares recorrentes ou refratárias ou isquemia miocárdica grave. A angiografia coronária é recomendada antes da alta em sobreviventes adultos com suspeita de etiologia cardíaca, especialmente com ritmo inicial chocável, disfunção sistólica de VE sem explicação ou isquemia grave. TC de cabeça até a pelve e ultrassonografia cardíaca à beira do leito podem ser aceitáveis para investigar a causa da parada e as complicações da ressuscitação.',
             priority: 'emergency',
-            timing: '< 10 min pós-RCE',
-            fonte: 'AHA 2025 / ESC 2023',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), pp. 17–19 (Figura 7; estudos diagnósticos; intervenção coronária)',
             statusRecomendacao: 'VERIFICAR',
           },
           {
             id: 'pcr-9',
             title: 'Controle Direcionado de Temperatura (TTM)',
             detail:
-              'Para pacientes comatosos após o RCE: manter Controle Direcionado de Temperatura entre 32°C e 36°C (ou prevenção estrita de febre < 37,5°C) por pelo menos 36 a 72 horas para neuroproteção intensiva.',
+              'Para adultos que continuam sem seguir comandos após o RCE (depois de suspender a sedação e o bloqueio neuromuscular, ou se não for possível avaliar): iniciar estratégia deliberada de controle de temperatura com meta entre 32 °C e 37,5 °C o mais rápido possível, mantida por pelo menos 36 horas. Avaliar convulsões com EEG. O prognóstico deve ser multimodal e tardio (a partir de 72 horas após o RCE ou depois de atingir a normotermia). Não é recomendado tratar mioclonia sem correlato no EEG.',
             priority: 'high',
-            timing: 'Primeiras 72 horas',
-            fonte: 'AHA 2025 / ERC 2025',
-            statusRecomendacao: 'VERIFICAR',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), pp. 18–19 (Figura 7; controle de temperatura; neuroprognóstico)',
+            statusRecomendacao: 'CONFIRMADA',
           },
         ],
       },
@@ -719,7 +717,7 @@ export const CLINICAL_PROTOCOLS: Patologia[] = [
     cid10: ['I47.1', 'I47.2', 'I48.0', 'I48.9'],
     guidelines: [
       { nome: 'ESC Guidelines for the Management of Atrial Fibrillation', sociedade: 'ESC', ano: 2024, status: 'VERIFICAR' },
-      { nome: 'AHA/ACC ACLS Guidelines: Tachycardia with a Pulse Algorithm', sociedade: 'AHA/ACC', ano: 2025, status: 'VERIFICAR' },
+      { nome: 'AHA Guidelines for CPR and ECC: Tachycardia with a Pulse', sociedade: 'AHA', ano: 2025, status: 'VERIFICAR' },
       { nome: 'ERC Guidelines: Management of Peri-Arrest Arrhythmias', sociedade: 'ERC', ano: 2025, status: 'VERIFICAR' },
     ],
     revisadoEm: REVISADO_EM,
@@ -771,10 +769,10 @@ export const CLINICAL_PROTOCOLS: Patologia[] = [
             id: 'taq-2',
             title: 'Cardioversão Elétrica Sincronizada (Paciente Instável)',
             detail:
-              'Garantir sedação e analgesia rápida se o nível de consciência permitir (Midazolam 2 a 3 mg EV ou Etomidato 0,1 a 0,2 mg/kg + Fentanil 50 mcg). Ativar o modo SINCRONIZADO no desfibrilador. Energias bifásicas recomendadas: FA instável: 120–200 J; Flutter atrial ou TPSV: 50–100 J; TV monomórfica instável: 100 J. Se TV polimórfica: choque assincrônico (desfibrilação 200 J).',
+              'Garantir sedação e analgesia rápida se o nível de consciência permitir (Midazolam 2 a 3 mg EV ou Etomidato 0,1 a 0,2 mg/kg + Fentanil 50 mcg). Ativar o modo SINCRONIZADO no desfibrilador. Para a cardioversão de FA em adultos com desfibrilador bifásico, a AHA 2025 aceita energia inicial de pelo menos 200 J, aumentando em caso de falha conforme o equipamento; para flutter atrial, 200 J inicial também é aceitável; a utilidade da cardioversão duplamente sincronizada da FA é incerta. Energias de TPSV (50–100 J) e de TV monomórfica (100 J) e a dose dos sedativos não constam do documento de destaques: conferir no texto completo. Se TV polimórfica: choque assincrônico (desfibrilação).',
             priority: 'emergency',
             timing: 'Imediato',
-            fonte: 'AHA 2025 / ESC 2024',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), p. 17 (FA e flutter); demais valores: texto completo da AHA 2025',
             statusRecomendacao: 'VERIFICAR',
           },
         ],
@@ -807,10 +805,10 @@ export const CLINICAL_PROTOCOLS: Patologia[] = [
             id: 'taq-5',
             title: 'QRS Largo e Regular (Taquicardia Ventricular Monomórfica Estável)',
             detail:
-              'Considerar TV até prova em contrário. Fármaco de escolha: Amiodarona 150 mg EV infundida em 10 minutos (diluída em SG 5% 100 mL). Manutenção se revertida: 1 mg/min por 6 horas (360 mg) seguido de 0,5 mg/min por 18 horas (540 mg). Alternativas: Procainamida 20 a 50 mg/min até supressão ou Lidocaína 1 a 1,5 mg/kg.',
+              'Considerar TV até prova em contrário. Fármaco de escolha: Amiodarona 150 mg EV infundida em 10 minutos (diluída em SG 5% 100 mL). Manutenção se revertida: 1 mg/min por 6 horas (360 mg) seguido de 0,5 mg/min por 18 horas (540 mg). Alternativas: Procainamida 20 a 50 mg/min até supressão ou Lidocaína 1 a 1,5 mg/kg. Em paciente estável com taquicardia de complexo largo, manobras vagais ou adenosina podem ser tentadas; se a taquicardia persistir após essas terapias e a terapia farmacológica, ou se estas forem contraindicadas, a cardioversão sincronizada é recomendada. [Doses não constam do documento de destaques: conferir no texto completo.]',
             priority: 'emergency',
             timing: '< 15 min',
-            fonte: 'AHA 2025 / ERC 2025',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), p. 16 (taquicardia de complexo largo); doses: texto completo da AHA 2025',
             statusRecomendacao: 'VERIFICAR',
           },
           {
@@ -847,7 +845,7 @@ export const CLINICAL_PROTOCOLS: Patologia[] = [
     specialty: 'Cardiologia',
     cid10: ['I44.0', 'I44.1', 'I44.2', 'I49.5'],
     guidelines: [
-      { nome: 'AHA/ACC ACLS Guidelines: Bradycardia Algorithm', sociedade: 'AHA/ACC', ano: 2025, status: 'VERIFICAR' },
+      { nome: 'AHA Guidelines for CPR and ECC: Bradycardia With a Pulse Algorithm', sociedade: 'AHA', ano: 2025, status: 'CONFIRMADA' },
       { nome: 'ERC Guidelines: Management of Peri-Arrest Arrhythmias - Bradycardia', sociedade: 'ERC', ano: 2025, status: 'VERIFICAR' },
       { nome: 'ESC Guidelines on Cardiac Pacing and Cardiac Resynchronization Therapy', sociedade: 'ESC', ano: 2021, status: 'VERIFICAR' },
     ],
@@ -935,10 +933,10 @@ export const CLINICAL_PROTOCOLS: Patologia[] = [
             id: 'bra-5',
             title: 'Marca-Passo Transvenoso de Urgência',
             detail:
-              'Em BAV de alto grau sintomático persistente (Mobitz II ou BAV total): passagem de cabo-eletrodo de marca-passo transvenoso provisório sob punção venosa central (veia jugular interna direita ou femoral).',
+              'Em bradicardia persistente, hemodinamicamente instável e refratária ao tratamento medicamentoso (por exemplo, BAV de alto grau sintomático), é aceitável analisar o uso de marca-passo transvenoso temporário para aumentar a frequência cardíaca e melhorar os sintomas até um tratamento definitivo (correção da causa ou marca-passo permanente). Via de acesso: veia jugular interna direita ou femoral, sob punção venosa central.',
             priority: 'emergency',
             timing: '< 1 hora',
-            fonte: 'ESC 2021 / AHA 2025',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), p. 17 (manejo inicial de bradicardia)',
             statusRecomendacao: 'VERIFICAR',
           },
         ],

@@ -12,6 +12,13 @@ import { LIMITS, checkRange, checkSex, throwIfErrors } from './validation';
 
 export type WeightPolicy = 'auto' | 'real' | 'ideal' | 'ajustado';
 
+/**
+ * Política de peso padrão do Cockcroft-Gault, definida pelo revisor: PESO AJUSTADO.
+ * ABW = IBW(Devine) + 0,4 × (peso real − IBW). Se o peso real for menor ou igual ao ideal, usa-se o peso real.
+ * Para mudar a política do app inteiro, altere somente esta constante. [Registrar a fonte/protocolo institucional.]
+ */
+export const DEFAULT_CG_WEIGHT_POLICY: WeightPolicy = 'ajustado';
+
 export interface TfgResult {
   ckdEpi2021: number; // mL/min/1.73m²
   cockcroftGault: number; // mL/min
@@ -123,9 +130,9 @@ export function calculateCkdEpi2021(age: number, sex: 'M' | 'F', creatinineMgDl:
 /**
  * Cockcroft-Gault (1976): ClCr = [(140 − idade) × peso] / (72 × Scr) × (0,85 se mulher)
  *
- * Convenção de peso (política 'auto', ajustável): real se abaixo do ideal; ajustado se > 130% do ideal;
- * real nos demais casos. [VERIFICAR] a convenção adotada pelo serviço/bula e use 'real' | 'ideal' | 'ajustado'
- * para forçar outra política. A política usada é sempre exibida no resultado.
+ * Convenção de peso: padrão = DEFAULT_CG_WEIGHT_POLICY ('ajustado', decisão do revisor). A política 'auto'
+ * (real se abaixo do ideal; ajustado se > 130% do ideal; real nos demais casos) continua disponível, assim como
+ * 'real' e 'ideal'. A política usada é sempre exibida no resultado.
  */
 export function calculateCockcroftGault(
   age: number,
@@ -133,7 +140,7 @@ export function calculateCockcroftGault(
   actualWeightKg: number,
   heightCm: number,
   creatinineMgDl: number,
-  weightPolicy: WeightPolicy = 'auto'
+  weightPolicy: WeightPolicy = DEFAULT_CG_WEIGHT_POLICY
 ): {
   clcr: number;
   weightUsed: number;
@@ -163,7 +170,8 @@ export function calculateCockcroftGault(
   } else if (weightPolicy === 'ideal') {
     weightUsed = idealWeight; weightType = 'ideal';
   } else if (weightPolicy === 'ajustado') {
-    weightUsed = adjustedWeight; weightType = 'ajustado';
+    weightUsed = adjustedWeight;
+    weightType = adjustedWeight === actualWeightKg ? 'real' : 'ajustado'; // se ABW = peso real, o valor usado é o real
   } else if (actualWeightKg < idealWeight) {
     weightUsed = actualWeightKg; weightType = 'real';
   } else if (actualWeightKg > idealWeight * 1.3) {
@@ -189,7 +197,12 @@ export function calculateCockcroftGault(
       Altura: `${heightCm} cm`,
       'Peso ideal (Devine)': `${idealWeight} kg`,
       'Peso ajustado': `${adjustedWeight} kg`,
-      'Política de peso': weightPolicy === 'auto' ? 'automática (convenção a validar)' : `forçada: ${weightPolicy}`,
+      'Política de peso':
+        weightPolicy === 'auto'
+          ? 'automática (convenção a validar)'
+          : weightPolicy === DEFAULT_CG_WEIGHT_POLICY
+          ? `${weightPolicy} (padrão definido pelo revisor)`
+          : `forçada: ${weightPolicy}`,
       'Peso utilizado': `${weightUsed} kg (${weightType})`,
       'Creatinina sérica': `${scr.toFixed(2)} mg/dL`,
     },
@@ -212,6 +225,9 @@ export function calculateCockcroftGault(
     },
     clinicalNotes: [
       'Confirme no registro de cada fármaco qual estimativa (Cockcroft-Gault ou TFG indexada) e qual peso a bula/guideline exige.',
+      ...(weightPolicy === 'ajustado'
+        ? ['Política do serviço: peso ajustado = ideal + 0,4 × (real − ideal); se o peso real for menor ou igual ao ideal, usa-se o real.']
+        : []),
     ],
     warningAlert: WARNING_CREATININE,
   };
@@ -226,7 +242,7 @@ export function calculateFullTfg(
   weightKg: number,
   heightCm: number,
   creatinineMgDl: number,
-  weightPolicy: WeightPolicy = 'auto'
+  weightPolicy: WeightPolicy = DEFAULT_CG_WEIGHT_POLICY
 ): TfgResult {
   const ckd = calculateCkdEpi2021(age, sex, creatinineMgDl);
   const cg = calculateCockcroftGault(age, sex, weightKg, heightCm, creatinineMgDl, weightPolicy);
@@ -248,4 +264,3 @@ export function calculateFullTfg(
     explanationCockcroftGault: cg.explanation,
   };
 }
-

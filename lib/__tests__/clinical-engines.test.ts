@@ -91,6 +91,27 @@ describe('TFG - valores de referência', () => {
     expect(r.weightUsed).toBeCloseTo(83.4, 1);
     expect(r.clcr).toBe(84);
   });
+  it('política padrão é peso AJUSTADO (decisão do revisor): 80 kg, 175 cm, 60 anos, Cr 1,0 => 83 mL/min', () => {
+    const r = calculateCockcroftGault(60, 'M', 80, 175, 1.0);
+    expect(r.weightType).toBe('ajustado');
+    expect(r.weightUsed).toBeCloseTo(74.3, 1);
+    expect(r.clcr).toBe(83);
+  });
+  it('mesmo paciente com política real => 89 mL/min; com auto (≤ 130% do ideal) também usa o real', () => {
+    expect(calculateCockcroftGault(60, 'M', 80, 175, 1.0, 'real').clcr).toBe(89);
+    expect(calculateCockcroftGault(60, 'M', 80, 175, 1.0, 'auto').clcr).toBe(89);
+  });
+  it('peso real abaixo do ideal: a política ajustada usa o peso real e informa "real"', () => {
+    const r = calculateCockcroftGault(60, 'M', 60, 175, 1.0);
+    expect(r.weightUsed).toBe(60);
+    expect(r.weightType).toBe('real');
+  });
+  it('a TFG completa usa a política padrão e a exibe na explicação', () => {
+    const r = calculateFullTfg(60, 'M', 80, 175, 1.0);
+    expect(r.cockcroftGault).toBe(83);
+    expect(r.weightTypeUsed).toBe('ajustado');
+    expect(r.explanationCockcroftGault.variablesUsed['Política de peso']).toContain('ajustado');
+  });
   it('Política de peso pode ser forçada', () => {
     expect(calculateCockcroftGault(55, 'F', 130, 160, 1.0, 'real').weightType).toBe('real');
   });
@@ -301,7 +322,7 @@ describe('Conduta - cálculo de doses', () => {
     const fasesAlteplase = fases();
     fasesAlteplase[0].items = [
       { id: 'alt', title: 'Alteplase', detail: 'Trombólise', priority: 'emergency',
-        drugPrescription: { drugId: 'alteplase', drugName: 'Alteplase', calculatedDose: '100 mg', route: 'EV', dilution: '100 mg em 100 mL', safetyDoubleCheck: false, targetParameter: '-' } },
+        drugPrescription: { drugId: 'alteplase', drugName: 'Alteplase', calculatedDose: '100 mg', route: 'EV em bólus', dilution: '100 mg em 100 mL', safetyDoubleCheck: false, targetParameter: '-' } },
     ];
     const r = generateStratifiedConduct(paciente(), 'x', 'Teste', fasesAlteplase);
     expect(item(r, 'alt').drugPrescription!.calculatedDose).toContain('NÃO CALCULADO');

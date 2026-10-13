@@ -16,10 +16,12 @@ import {
 import type { Patologia } from '../../../types/clinical';
 import { generateStratifiedConduct } from '../../../lib/conduta-engine';
 import { usePatient } from '../../context/PatientContext';
+import { usePediatric } from '../../context/PediatricContext';
 import { ValidationStatusBadge } from '../ui/ResultBadge';
 
 export const CondutaPanel: React.FC<{ protocolo: Patologia }> = ({ protocolo }) => {
   const { patient, isConfirmed, activePresetLabel, openPatientDrawer } = usePatient();
+  const { isPediatricConfirmed } = usePediatric();
   const [copied, setCopied] = useState(false);
   const [collapsedPhases, setCollapsedPhases] = useState<Record<number, boolean>>({});
 
@@ -120,12 +122,29 @@ export const CondutaPanel: React.FC<{ protocolo: Patologia }> = ({ protocolo }) 
       </div>
 
       <div className="p-6 space-y-6">
-        {/* Print-only prefix for example case */}
-        {activePresetLabel && (
-          <div className="hidden print:block text-center font-bold text-sm text-black border-b border-black pb-2 mb-4">
-            {activePresetLabel}
+        {/* Aviso de Paciente Pediátrico Ativo: bloquear conduta adulta */}
+        {isPediatricConfirmed ? (
+          <div className="p-8 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-800 text-center space-y-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="max-w-md mx-auto space-y-1">
+              <h4 className="text-base font-bold text-amber-950 dark:text-amber-100 font-serif">
+                Paciente pediátrico: use o módulo pediátrico
+              </h4>
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                A conduta e as prescrições farmacológicas geradas neste protocolo são exclusivas para adultos (&ge; 18 anos e &ge; 30 kg). Para crianças e adolescentes, utilize o módulo dedicado de PCR Pediátrica.
+              </p>
+            </div>
           </div>
-        )}
+        ) : (
+          <>
+            {/* Print-only prefix for example case */}
+            {activePresetLabel && (
+              <div className="hidden print:block text-center font-bold text-sm text-black border-b border-black pb-2 mb-4">
+                {activePresetLabel}
+              </div>
+            )}
 
         {/* Example Case Banner if active */}
         {activePresetLabel && (
@@ -379,6 +398,8 @@ export const CondutaPanel: React.FC<{ protocolo: Patologia }> = ({ protocolo }) 
             Conteúdo de apoio à decisão clínica. Não substitui o julgamento médico.
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

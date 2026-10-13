@@ -25,12 +25,14 @@ interface HomePageProps {
   onSelectProtocol: (id: string) => void;
   onNavigateAudit: () => void;
   onNavigateTools: () => void;
+  onNavigatePediatric: () => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
   onSelectProtocol,
   onNavigateAudit,
   onNavigateTools,
+  onNavigatePediatric,
 }) => {
   const { patient, metrics, isConfirmed } = usePatient();
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('all');
@@ -38,6 +40,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   const specialties = [
     { id: 'all', label: 'Todas as Áreas' },
+    { id: 'Pediatria', label: 'Pediatria' },
     { id: 'Sepse & Choque', label: 'Sepse & Choque' },
     { id: 'Cardiologia', label: 'Cardiologia' },
     { id: 'Pneumologia', label: 'Pneumologia' },
@@ -144,6 +147,57 @@ export const HomePage: React.FC<HomePageProps> = ({
 
         {/* Protocols Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
+          {/* Cartão Dedicado: PCR Pediátrica */}
+          {(selectedSpecialty === 'all' || selectedSpecialty === 'Pediatria') &&
+            (searchFilter === '' ||
+              'pcr pediátrica'.includes(searchFilter.toLowerCase()) ||
+              'pals'.includes(searchFilter.toLowerCase()) ||
+              'parada cardíaca pediátrica'.includes(searchFilter.toLowerCase())) && (
+              <div className="group rounded-2xl border-2 border-rose-300 dark:border-rose-900/60 bg-gradient-to-br from-rose-50/50 to-white dark:from-slate-900 dark:to-rose-950/20 p-6 shadow-sm hover:shadow-md hover:border-rose-500 transition-all duration-200 flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                        <Heart className="w-3.5 h-3.5 fill-current" />
+                        <span>Pediatria • PALS 2025</span>
+                      </span>
+                      <h3 className="text-xl font-bold font-serif text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                        PCR Pediátrica
+                      </h3>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800 shrink-0">
+                      Rascunho
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-3 leading-relaxed">
+                    Algoritmo de parada cardiorrespiratória pediátrica (AHA/AAP 2025). Cálculo individualizado por peso e faixa etária: epinefrina, amiodarona, lidocaína e energia de desfibrilação com teto estrito.
+                  </p>
+
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-3 text-xs text-slate-500 font-mono">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-rose-600" />
+                      <span>Desfibrilação imediata</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-xs font-mono text-slate-400">
+                    Módulo Pediátrico
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onNavigatePediatric}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
+                  >
+                    <span>Abrir Módulo</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
           {filteredProtocols.map((protocol) => (
             <div
               key={protocol.id}

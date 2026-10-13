@@ -215,3 +215,90 @@ describe('scores-engine: ATS/IDSA PAC Grave', () => {
     expect(res.interpretation?.label).toContain('PAC GRAVE');
   });
 });
+
+describe('scores-engine: CURB-65 e CRB-65 (SBPT 2009)', () => {
+  const curbScore = CLINICAL_SCORES.find((s) => s.id === 'curb_65')!;
+  const crbScore = CLINICAL_SCORES.find((s) => s.id === 'crb_65')!;
+
+  it('o escore curb_65 possui critério com rótulo contendo "50 mg/dL" e não cita 42 mg/dL', () => {
+    const ureiaCrit = curbScore.criteria.find((c) => c.id === 'u');
+    expect(ureiaCrit).toBeDefined();
+    expect(ureiaCrit?.label).toContain('50 mg/dL');
+    expect(ureiaCrit?.label).not.toContain('42 mg/dL');
+    expect(curbScore.reference).toContain('SBPT 2009');
+    expect(curbScore.reference).not.toContain('padronizado BTS/SBPT');
+  });
+
+  it('curb_65 sem critério = baixo risco', () => {
+    const responses: Record<string, number> = {
+      c: 0,
+      u: 0,
+      r: 0,
+      b: 0,
+      '65': 0,
+    };
+    const res = calculateAndInterpretScore(curbScore, responses, null, false);
+    expect(res.totalScore).toBe(0);
+    expect(res.isComplete).toBe(true);
+    expect(res.interpretation?.severity).toBe('low');
+    expect(res.interpretation?.label).toContain('Baixo Risco');
+    expect(res.interpretation?.recommendation).toContain('Provável tratamento ambulatorial');
+  });
+
+  it('curb_65 com 3 critérios = alto risco', () => {
+    const responses: Record<string, number> = {
+      c: 1,
+      u: 1,
+      r: 1,
+      b: 0,
+      '65': 0,
+    };
+    const res = calculateAndInterpretScore(curbScore, responses, null, false);
+    expect(res.totalScore).toBe(3);
+    expect(res.isComplete).toBe(true);
+    expect(res.interpretation?.severity).toBe('critical');
+    expect(res.interpretation?.label).toContain('Alto Risco');
+    expect(res.interpretation?.recommendation).toContain('Tratar como PAC grave');
+  });
+
+  it('curb_65 com 4–5 critérios traz recomendação de avaliar UTI', () => {
+    const responses4: Record<string, number> = {
+      c: 1,
+      u: 1,
+      r: 1,
+      b: 1,
+      '65': 0,
+    };
+    const res4 = calculateAndInterpretScore(curbScore, responses4, null, false);
+    expect(res4.totalScore).toBe(4);
+    expect(res4.isComplete).toBe(true);
+    expect(res4.interpretation?.severity).toBe('critical');
+    expect(res4.interpretation?.recommendation).toContain('avaliar UTI');
+
+    const responses5: Record<string, number> = {
+      c: 1,
+      u: 1,
+      r: 1,
+      b: 1,
+      '65': 1,
+    };
+    const res5 = calculateAndInterpretScore(curbScore, responses5, null, false);
+    expect(res5.totalScore).toBe(5);
+    expect(res5.interpretation?.recommendation).toContain('avaliar UTI');
+  });
+
+  it('crb_65 com 3 critérios = alto risco', () => {
+    const responses: Record<string, number> = {
+      c: 1,
+      r: 1,
+      b: 1,
+      '65': 0,
+    };
+    const res = calculateAndInterpretScore(crbScore, responses, null, false);
+    expect(res.totalScore).toBe(3);
+    expect(res.isComplete).toBe(true);
+    expect(res.interpretation?.severity).toBe('critical');
+    expect(res.interpretation?.label).toContain('Alto Risco');
+    expect(res.interpretation?.recommendation).toContain('Hospitalização urgente');
+  });
+});

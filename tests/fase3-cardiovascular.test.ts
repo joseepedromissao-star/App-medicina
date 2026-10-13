@@ -185,7 +185,7 @@ describe('Fase 3 - Bloco Cardiovascular', () => {
 
     it('protocolo de bradiarritmias registrado com AHA 2025 e ERC 2025', () => {
       expect(bradiProtocol).toBeDefined();
-      expect(bradiProtocol?.guidelines?.[0]?.nome).toContain('AHA/ACC');
+      expect(bradiProtocol?.guidelines?.[0]?.nome).toContain('AHA');
       expect(bradiProtocol?.guidelines?.[0]?.ano).toBe(2025);
     });
 

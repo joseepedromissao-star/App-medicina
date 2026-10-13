@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Activity,
   Calculator,
@@ -28,6 +28,7 @@ import {
 } from '../../../lib/infusion';
 import { ClinicalInputError } from '../../../lib/validation';
 import { usePatient } from '../../context/PatientContext';
+import { usePediatric } from '../../context/PediatricContext';
 import { ComoCalculei } from '../ui/ComoCalculei';
 import { ResultBadge, ValidationStatusBadge } from '../ui/ResultBadge';
 import { AlertaAltaVigilancia } from '../ui/AlertaAltaVigilancia';
@@ -39,6 +40,7 @@ export const CalculatorSheet: React.FC<{
   className?: string;
 }> = ({ initialTab = 'tfg', filterDrugId, onOpenPatientDrawer, className = '' }) => {
   const { patient, updatePatient, isConfirmed, activePresetLabel, openPatientDrawer } = usePatient();
+  const { isPediatricConfirmed } = usePediatric();
   const [activeTab, setActiveTab] = useState<'tfg' | 'infusao'>(initialTab);
 
   // --- TFG STATE ---
@@ -168,13 +170,30 @@ export const CalculatorSheet: React.FC<{
     <div
       className={`rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-5 space-y-6 ${className}`}
     >
-      {/* Example Case Banner if active */}
-      {activePresetLabel && (
-        <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-bold flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>{activePresetLabel}</span>
+      {/* Aviso de Paciente Pediátrico Ativo: bloquear calculadoras de adulto */}
+      {isPediatricConfirmed ? (
+        <div className="p-8 rounded-xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-800 text-center space-y-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 flex items-center justify-center mx-auto">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div className="max-w-md mx-auto space-y-1">
+            <h4 className="text-base font-bold text-amber-950 dark:text-amber-100 font-serif">
+              Paciente pediátrico: use o módulo pediátrico
+            </h4>
+            <p className="text-xs text-amber-800 dark:text-amber-300">
+              As calculadoras de TFG (CKD-EPI / Cockcroft-Gault) e infusão contínua desta seção são validadas exclusivamente para adultos (&ge; 18 anos e &ge; 30 kg). Para crianças e adolescentes, utilize o módulo dedicado de PCR Pediátrica.
+            </p>
+          </div>
         </div>
-      )}
+      ) : (
+        <>
+          {/* Example Case Banner if active */}
+          {activePresetLabel && (
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-bold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{activePresetLabel}</span>
+            </div>
+          )}
 
       {/* Patient confirmation banner if patient not confirmed */}
       {!isConfirmed && (
@@ -615,6 +634,8 @@ export const CalculatorSheet: React.FC<{
             </>
           )}
         </div>
+      )}
+        </>
       )}
     </div>
   );

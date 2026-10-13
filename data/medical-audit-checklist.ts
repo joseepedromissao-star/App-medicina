@@ -38,11 +38,11 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     category: 'Fórmula Matemática',
     item: 'Convenção de peso no Cockcroft-Gault (real / ideal de Devine / ajustado)',
     guidelineReference: 'A definir pelo revisor (bula do fármaco ou protocolo institucional)',
-    status: 'PENDENTE_REVISAO_MEDICA',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
     notes:
-      'A política automática usa peso real se abaixo do ideal, ajustado se > 130% do ideal e real nos demais casos. A nota anterior citava IMC > 30, que não existe no código, e uma fonte comercial; ambas foram removidas.',
-    acaoNecessaria: 'Definir a convenção oficial (ou por fármaco) e citar a fonte. A política é configurável (real | ideal | ajustado).',
-    testeAutomatizado: ['TFG - valores de referência (peso ajustado, política forçada)'],
+      'Decisão do revisor: usar o PESO AJUSTADO (ideal de Devine + 0,4 × (real − ideal)); se o peso real for menor ou igual ao ideal, usa-se o real. A política fica em uma constante (DEFAULT_CG_WEIGHT_POLICY) e vale para a calculadora, a conduta e o ajuste renal. Atenção: em pacientes eutróficos, o peso ajustado reduz o clearance estimado em poucos por cento em relação ao peso real, o que é conservador para fármacos nefrotóxicos mas pode subdosar fármacos de eliminação renal.',
+    acaoNecessaria: 'Registrar a fonte ou o protocolo institucional que sustenta a política única de peso ajustado e conferir se algum fármaco do registro exige outra estimativa (por exemplo, bula que pede peso real).',
+    testeAutomatizado: ['TFG - valores de referência (política padrão ajustada, forçada e peso real abaixo do ideal)'],
     arquivo: 'lib/tfg.ts',
   },
   {
@@ -192,8 +192,9 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     guidelineReference: 'ATS/IDSA 2019 e SBPT (conferir qual a instituição adota)',
     status: 'CORRIGIDO_AGUARDA_REVISAO',
     notes:
-      'scores.ts agora usa ureia > 42 mg/dL (> 7 mmol/L) no rótulo e na descrição, eliminando a inconsistência. A atribuição "padronizado BTS/SBPT" não foi confirmada: em materiais brasileiros costuma aparecer 50 mg/dL. Se a decisão foi do Gemini e não do preceptor, ela ainda precisa de validação.',
-    acaoNecessaria: 'O preceptor confirma o ponto de corte único (42 ou 50 mg/dL) e a fonte, e o mesmo valor deve ser usado no CURB-65 e no critério de ureia do ATS/IDSA.',
+      'Aplicado: curb_65 e crb_65 seguem a SBPT 2009 (ureia > 50 mg/dL; faixas 0–1, 2 e 3–5 com mortalidades de cerca de 1,5%, 9,2% e 22% no CURB-65, e 0, 1–2 e 3–4 com cerca de 1,2%, 8,15% e 31% no CRB-65), com a ressalva de que o escore é auxiliar. O critério menor de ureia do ATS/IDSA continua com "> 42 mg/dL (BUN ≥ 20 mg/dL)" por ser a regra daquela fonte, e o PSI usa a ureia do PSI; cada escore mantém a própria fonte.',
+    acaoNecessaria: 'O revisor confere o texto dos dois escores contra a SBPT e confirma que manter pontos de corte de ureia diferentes por escore (cada um conforme a sua fonte) é aceitável.',
+    testeAutomatizado: ['tests/scores-engine.test.ts', 'tests/pac-scores.test.ts'],
     arquivo: 'data/scores.ts',
   },
   {
@@ -529,10 +530,11 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     category: 'Estratificação de Risco',
     item: 'PSI/PORT sem pontos de idade e sexo',
     guidelineReference: 'Pneumonia Severity Index (regra de Fine) — conferir na publicação original',
-    status: 'ATENCAO_CRITICA',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
     notes:
-      'O PSI soma a idade em anos (homens) ou a idade menos 10 (mulheres) antes dos demais critérios. O escore gerado não tem esse componente: um homem de 85 anos sem outras alterações (PSI real 85, classe III) aparece com 0 ponto e "Baixo Risco, tratamento ambulatorial seguro". O teste existente só confere a estrutura (número de critérios e faixas), não a pontuação.',
-    acaoNecessaria: 'Somar automaticamente os pontos demográficos a partir de idade e sexo do paciente confirmado (ou marcar o escore como incompleto sem paciente confirmado) e criar testes com valores de referência.',
+      'lib/scores-engine.ts soma os pontos demográficos do paciente confirmado (homem = idade; mulher = idade − 10). Verificado: homem de 85 anos sem outros critérios = 85 (classe III); mulher de 90 anos = 80 (classe III); sem paciente confirmado o escore fica incompleto. As faixas passaram a 0–70, 71–90, 91–130 e acima de 130.',
+    acaoNecessaria: 'O revisor confere a regra de pontuação e as faixas na publicação original do PSI (Fine) e decide se a classe I (idade ≤ 50 sem comorbidades) deve ser separada da classe II.',
+    testeAutomatizado: ['tests/scores-engine.test.ts'],
     arquivo: 'data/scores.ts, src/components/scores/ScoreCard.tsx',
   },
   {
@@ -540,10 +542,11 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     category: 'Estratificação de Risco',
     item: 'NEWS2: regra de parâmetro isolado e frequência de monitorização',
     guidelineReference: 'Royal College of Physicians, NEWS2 (2017) — conferir no documento',
-    status: 'ATENCAO_CRITICA',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
     notes:
-      'As pontuações das 7 variáveis conferem com o NEWS2. Faltam: (1) pontuação 3 em um único parâmetro exige resposta urgente, mas o motor soma e classifica só por total, então um paciente só com PAS 85 aparece como "baixo risco, monitorização a cada 12 h"; (2) a faixa de 1 a 4 pontos exibe a frequência de 12 h, que é a de pontuação 0; (3) a Escala 2 de SpO2 (hipercapnia crônica) não existe e isso deve estar avisado.',
-    acaoNecessaria: 'Implementar a regra do parâmetro isolado, separar as faixas 0 e 1–4 com as frequências corretas e avisar sobre a Escala 2.',
+      'Regra do parâmetro isolado implementada (3 pontos em uma variável com total < 5 gera aviso e resposta urgente). Faixas separadas: 0 = a cada 12 h; 1–4 = a cada 4–6 h; 5–6 = resposta urgente, a cada 1 h; ≥ 7 = emergência. O aviso da Escala 2 de SpO2 aparece na descrição do escore.',
+    acaoNecessaria: 'Conferir as frequências e a redação contra o documento do NEWS2 do Royal College of Physicians (2017) e implementar a Escala 2 antes de usar em hipercapnia crônica.',
+    testeAutomatizado: ['tests/scores-engine.test.ts'],
     arquivo: 'data/scores.ts, src/components/scores/ScoreCard.tsx',
   },
   {
@@ -551,10 +554,10 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     category: 'Dose de Fármaco',
     item: 'Calculadora da página de PAC cai silenciosamente no preset de noradrenalina',
     guidelineReference: 'Segurança do paciente (erro de medicação)',
-    status: 'ATENCAO_CRITICA',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
     notes:
-      'O protocolo de PAC passa "ceftriaxona" como fármaco da calculadora, mas não há preset com esse id; o seletor volta ao preset de noradrenalina. Uma página de pneumonia passa a oferecer uma calculadora de vasopressor.',
-    acaoNecessaria: 'Sem preset para o fármaco, mostrar "Sem calculadora de dose validada para este fármaco" e não cair em outro preset.',
+      'Sem preset para o fármaco, a aba mostra "Sem calculadora de dose validada para este fármaco" e não cai em outro preset. Com associatedDrugs vazio (PAC), a página de protocolo mostra "Sem calculadora de dose validada para este protocolo" e oculta a calculadora de infusão.',
+    acaoNecessaria: 'Testar no aparelho as páginas de PAC (sem calculadora), TEP (sem preset) e de um protocolo com preset.',
     arquivo: 'src/components/calculators/CalculatorSheet.tsx, src/pages/ProtocolPage.tsx',
   },
   {
@@ -575,8 +578,9 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     guidelineReference: 'Qualidade de software',
     status: 'PENDENTE_REVISAO_MEDICA',
     notes:
-      'tests/pac-scores.test.ts verifica contagem de critérios e faixas, e por isso não detectou a ausência da idade no PSI nem as regras faltantes do NEWS2. Não existe função pura de soma e interpretação para testar: o cálculo fica dentro do ScoreCard.',
-    acaoNecessaria: 'Extrair sumScore e interpretScore para lib/ e testar com casos clínicos de referência (PSI, NEWS2, CURB-65, ATS/IDSA).',
+      'Há agora testes de pontuação para PSI, NEWS2 e ATS/IDSA (tests/scores-engine.test.ts), que usam funções puras. Os demais escores (CURB-65, HEART, qSOFA, Wells, TIMI, GRACE e os de fases 2–5) continuam com testes apenas estruturais.',
+    acaoNecessaria: 'Estender os testes de pontuação com casos clínicos de referência aos demais escores.',
+    testeAutomatizado: ['tests/scores-engine.test.ts'],
     arquivo: 'tests/pac-scores.test.ts',
   },
   {
@@ -584,10 +588,10 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     category: 'Conteúdo Clínico',
     item: 'Fontes e afirmações sem lastro nos novos scores e protocolo',
     guidelineReference: 'Regra do projeto: apenas guidelines oficiais, sem autores individuais',
-    status: 'PENDENTE_REVISAO_MEDICA',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
     notes:
-      'Os novos escores citam autores individuais (Fine, Metlay, Lim). O ATS/IDSA traz "mortalidade > 20% a 50%" sem fonte, e o CURB-65 diz "padronizado BTS/SBPT". Além disso, o item pac-1 do protocolo passou de VERIFICAR para CONFIRMADA sem decisão registrada do revisor.',
-    acaoNecessaria: 'Trocar referências por nome da guideline, remover ou fundamentar as afirmações e devolver pac-1 para VERIFICAR até a assinatura do preceptor.',
+      'Referências por autor (Fine, Metlay, Lim), a atribuição "padronizado BTS/SBPT" e a frase de mortalidade sem fonte foram removidas de scores.ts e dos protocolos, e o item pac-1 voltou para VERIFICAR.',
+    acaoNecessaria: 'Conferir se restam referências por autor em outros escores e comentários do código.',
     arquivo: 'data/scores.ts, data/mock-protocols.ts',
   },
 
@@ -610,7 +614,7 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     guidelineReference: 'Processo de validação clínica',
     status: 'CORRIGIDO_AGUARDA_REVISAO',
     notes:
-      'O Gemini marcou 63 recomendações e 27 guidelines como CONFIRMADA, e a interface exibe "Guideline conferida" para elas. Ninguém conferiu. O patch 4 devolve para VERIFICAR 60 recomendações e 20 guidelines, mantendo CONFIRMADA apenas em 3 recomendações (triagem de sepse da SSC 2026, duração de 3 a 5 dias e regras de corticoide da ATS 2025) e em 7 guidelines cuja existência foi conferida em fonte secundária.',
+      'O Gemini marcou 63 recomendações e 27 guidelines como CONFIRMADA, e a interface exibe "Guideline conferida" para elas. Ninguém conferiu. O patch 4 devolveu para VERIFICAR 60 recomendações e 20 guidelines. Depois, 1 recomendação (o item pac-1, conferido no texto da SBPT 2009) e 1 guideline (SBPT 2009) voltaram a CONFIRMADA, o que dá 6 recomendações (triagem de sepse da SSC 2026, duração de 3 a 5 dias e corticoide da ATS 2025, estratificação da PAC pela SBPT e, na AHA 2025, as metas pós-RCE e o controle de temperatura, conferidos no documento de destaques) e 10 guidelines.',
     acaoNecessaria: 'O revisor muda cada item para CONFIRMADA somente após conferir o texto original.',
     arquivo: 'data/mock-protocols.ts',
   },
@@ -644,8 +648,8 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     guidelineReference: 'AHA 2025 e ERC 2025 (suporte avançado de vida pediátrico)',
     status: 'PENDENTE_REVISAO_MEDICA',
     notes:
-      'Os motores recusam idade < 18 anos e peso < 30 kg. As doses pediátricas (por exemplo, por kg e com dose máxima) existem só como texto e não têm calculadora, validação de peso pediátrico nem faixas de plausibilidade próprias.',
-    acaoNecessaria: 'Decidir se o escopo é adulto, e então retirar o conteúdo pediátrico, ou criar um modo pediátrico com validação e testes próprios.',
+      'Decisão do revisor: escopo adulto e pediátrico. Os motores de adulto continuam recusando idade < 18 anos e peso < 30 kg de propósito (há testes que garantem isso). O módulo pediátrico é separado (lib/pediatric.ts) e, por ora, cobre apenas a parada cardiorrespiratória pediátrica. Faltam: interface pediátrica, TFG pediátrica (Schwartz à beira-leito), escore de alerta pediátrico, demais fármacos e demais protocolos.',
+    acaoNecessaria: 'Ampliar o módulo por etapas, cada uma com fonte e testes: interface pediátrica, atropina/adenosina/cardioversão, TFG pediátrica, escore de alerta pediátrico e sepse pediátrica.',
     arquivo: 'data/mock-protocols.ts, lib/validation.ts',
   },
   {
@@ -664,11 +668,108 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     category: 'Conteúdo Clínico',
     item: 'CHANGELOG-CLINICO.md e página "Sobre" afirmam fonte exclusiva em guidelines oficiais e rastreabilidade completa',
     guidelineReference: 'Honestidade sobre o estado de validação',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'O CHANGELOG-CLINICO.md e a página "Sobre" agora dizem "Conteúdo em validação: rascunho não revisado, não use para decisões clínicas".',
+    acaoNecessaria: 'Manter essa redação até a assinatura do revisor.',
+    arquivo: 'CHANGELOG-CLINICO.md, src/pages/AboutPage.tsx',
+  },
+
+  {
+    id: 'audit-ui-calc-no-filter',
+    category: 'Dose de Fármaco',
+    item: 'Páginas de protocolo sem fármaco associado listam todos os presets de infusão',
+    guidelineReference: 'Segurança do paciente (erro de medicação)',
     status: 'PENDENTE_REVISAO_MEDICA',
     notes:
-      'Os textos afirmam que o conteúdo se baseia "exclusivamente" nas diretrizes oficiais e descrevem a fonte como única e verificada. Enquanto o conteúdo estiver sem revisão médica, essas afirmações não podem ser feitas ao público.',
-    acaoNecessaria: 'Reescrever como "em validação": conteúdo de rascunho, não revisado, não para uso clínico.',
-    arquivo: 'CHANGELOG-CLINICO.md, src/pages/AboutPage.tsx',
+      'Corrigido para a lista vazia (PAC). Resta o caso inverso: em vários protocolos o único fármaco associado é a noradrenalina, mesmo quando ela não é a terapia da patologia (por exemplo, CAD/EHH), e a calculadora a oferece.',
+    acaoNecessaria: 'Rever, protocolo por protocolo, quais presets fazem sentido na página.',
+    arquivo: 'src/pages/ProtocolPage.tsx, data/mock-protocols.ts',
+  },
+
+  {
+    id: 'audit-sbpt-vs-ats',
+    category: 'Conteúdo Clínico',
+    item: 'PAC: o app combina duas fontes com regras diferentes (SBPT 2009 e ATS/IDSA/ATS 2025)',
+    guidelineReference: 'SBPT 2009; ATS/IDSA 2019; ATS 2025',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'PAC grave: a SBPT indica UTI com 1 critério maior ou 2 de 3 menores (hipotensão, PaO2/FiO2 < 250, infiltrado multilobar); o escore ATS/IDSA do app tem 9 menores e exige 3. Duração: a SBPT considera suficiente até 7 dias (evidência A), a ATS 2025 sugere 3 a 5 dias em PAC não grave estável. Corticoide: a SBPT admite hidrocortisona em PAC grave com choque dependente de vasopressor; a ATS 2025 tem regras próprias. Do documento da SBPT não devem ser importados, por estarem desatualizados, as metas de reanimação em 6 h por PVC e SvcO2, a proteína C ativada e a vacinação antipneumocócica apenas com polissacarídeo de 23 sorotipos. Confirmar também se a SBPT publicou edição posterior a 2009.',
+    acaoNecessaria: 'Rotular cada regra com a sua fonte na interface, definir a política do serviço quando as fontes divergem e conferir a existência de edição mais recente da SBPT.',
+    arquivo: 'data/scores.ts, data/mock-protocols.ts',
+  },
+
+  // ----------------------------- Módulo pediátrico ------------------------------
+  {
+    id: 'audit-ped-arrest-doses',
+    category: 'Dose de Fármaco',
+    item: 'PCR pediátrica: epinefrina, amiodarona, lidocaína e energia de choque por peso',
+    guidelineReference: 'PALS 2025 (AHA/AAP): algoritmo de parada cardíaca pediátrica e cartão de bolso',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'Valores conferidos contra o algoritmo e o cartão do PALS 2025: epinefrina 0,01 mg/kg da solução de 0,1 mg/mL (máximo 1 mg, a cada 3 a 5 min); amiodarona 5 mg/kg em bolus (máximo 300 mg na 1ª dose e 150 mg nas seguintes, até 3 doses); lidocaína 1 mg/kg de ataque; choques de 2 J/kg, 4 J/kg e depois de 4 até 10 J/kg sem passar da dose de adulto. A repetição (0,5 mg/kg) e a manutenção (20 a 50 mcg/kg/min) da lidocaína vêm só do cartão e estão marcadas VERIFICAR. Tudo está com validação clínica pendente.',
+    acaoNecessaria: 'O revisor confere cada valor no texto da guideline, define o número da "dose de adulto" do desfibrilador do serviço e decide como exibir o limite.',
+    testeAutomatizado: ['PCR pediátrica - valores de referência', 'PCR pediátrica - lactente e tetos'],
+    arquivo: 'lib/pediatric.ts',
+  },
+  {
+    id: 'audit-ped-weight-ranges',
+    category: 'Segurança do Software',
+    item: 'Faixas de plausibilidade de peso por faixa etária e origem do peso',
+    guidelineReference: 'Segurança do paciente (erro de dose por peso digitado errado)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'O módulo exige a idade em meses e a origem do peso (medido ou estimado), recusa pesos fora da faixa da idade (por exemplo, 70 kg num lactente de 3 meses, ou 7 kg em criança de 11 anos) e avisa quando o peso é estimado. As faixas são largas de propósito e servem só para detectar erro de digitação.',
+    acaoNecessaria: 'Aprovar ou ajustar as faixas em PEDIATRIC_AGE_BANDS e decidir se haverá estimativa de peso por comprimento (fita) no app.',
+    testeAutomatizado: ['Módulo pediátrico - entradas inválidas são recusadas'],
+    arquivo: 'lib/pediatric.ts',
+  },
+  {
+    id: 'audit-ped-ui-missing',
+    category: 'Segurança do Software',
+    item: 'Interface pediátrica (PCR pediátrica)',
+    guidelineReference: 'Prompt v2',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Criada: PediatricContext separado do paciente adulto, paciente pediátrico não confirmado ao abrir (e desconfirmado a cada edição), doses e choques ocultos sem confirmação, erros do motor exibidos, faixa "Rascunho não revisado", nota de escopo, "Como calculei" e selos de fonte. Enquanto o paciente pediátrico está confirmado, as calculadoras e a conduta de adulto mostram "Paciente pediátrico: use o módulo pediátrico". A lógica de dose continua só em lib/pediatric.ts, sem doses digitadas na página.',
+    acaoNecessaria: 'Testar no aparelho o bloqueio sem confirmação e o bloqueio das calculadoras de adulto, e resolver os itens audit-ped-ui-defaults.',
+    arquivo: 'src/',
+  },
+  {
+    id: 'audit-ped-protocol-text',
+    category: 'Conteúdo Clínico',
+    item: 'Texto pediátrico do protocolo de PCR (escrito pelo Gemini) pode divergir do módulo',
+    guidelineReference: 'PALS 2025 (AHA/AAP)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'O protocolo de PCR traz doses pediátricas em texto livre, que não passam pelo módulo e não têm tetos nem validação. Atropina, adenosina, cardioversão sincronizada, bicarbonato, cálcio e fluidos pediátricos não estão no módulo e saem como "NÃO CALCULADO".',
+    acaoNecessaria: 'Remover as doses pediátricas em texto e apontar para o módulo pediátrico, ou conferir cada uma contra a guideline.',
+    arquivo: 'data/mock-protocols.ts',
+  },
+
+  {
+    id: 'audit-ped-ui-defaults',
+    category: 'Segurança do Software',
+    item: 'Interface pediátrica abre com paciente de exemplo (4 anos, 15 kg) e origem do peso já marcada como "medido"',
+    guidelineReference: 'Prevenção de erro de medicação por peso',
+    status: 'ATENCAO_CRITICA',
+    notes:
+      'O motor exige a origem do peso, mas a tela já vem com "medido", o que suprime o aviso de peso estimado e pode ser confirmado com um toque sem a pessoa ter pesado a criança. Os campos de idade e peso também vêm preenchidos sem aviso de caso de exemplo. Além disso, os cartões de dose e de choque não mostram o selo "Pendente de validação" (só o rótulo de fonte), e o selo de recomendação conferida aparece em verde, o que pode sugerir aprovação.',
+    acaoNecessaria: 'Abrir com idade, peso e origem em branco (origem sem seleção), exigir escolha explícita, mostrar "Pendente de validação" em cada cartão e usar cor neutra (azul) para "Guideline conferida (sem validação médica)".',
+    arquivo: 'src/context/PediatricContext.tsx, src/pages/PediatricArrestPage.tsx',
+  },
+
+  {
+    id: 'audit-aha2025-highlights',
+    category: 'Conteúdo Clínico',
+    item: 'PCR, taquiarritmias e bradiarritmias conferidas contra "Destaques das Diretrizes de RCP e ACE de 2025" (AHA, JN-1580)',
+    guidelineReference: 'AHA 2025 Guidelines for CPR and ECC (Circulation, outubro de 2025): documento de destaques em português',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Corrigidos por divergência com o documento: SpO2 pós-RCE de 92–98% para 90–98% (PaO2 60–105 mmHg); controle de temperatura de 32–36 °C por 36 a 72 h para meta de 32 a 37,5 °C por pelo menos 36 h; noradrenalina como vasopressor pós-RCE (não há evidência para recomendar um específico); EtCO2 pós-RCE de 35–40 mmHg (sem base no documento); energia de cardioversão de FA e flutter para pelo menos 200 J bifásico; critérios de angiografia coronária pós-RCE ampliados; cardioversão sincronizada após falha de manobras vagais e fármacos na taquicardia de complexo largo estável; marca-passo transvenoso na bradicardia refratária; acesso IV antes de IO; vasopressina sem vantagem sobre a epinefrina; benefício incerto de betabloqueadores, bretílio, procainamida e sotalol na FV/TV refratária; situações especiais acrescentadas (hipercalemia, opioides, gestação, hipotermia, hipertermia, LVAD). A nomenclatura "AHA/ACC" para o ACLS foi trocada por "AHA". Confirmados sem alteração: pausas < 10 s e técnica do bebê, epinefrina precoce em PCR pediátrica não chocável, 30:2 aceitável, PAM ≥ 65 mmHg, PaCO2 35–45 mmHg. O documento é um resumo e não traz classes de recomendação nem níveis de evidência.',
+    acaoNecessaria: 'Conferir no texto completo da AHA 2025 (Parte 1 e as partes de SAV adulto e pediátrico): frequência e profundidade das compressões, energias de choque na FV/TV, doses de epinefrina, amiodarona e lidocaína de adulto, atropina, adenosina, doses de sedativos e energias de TPSV e TV monomórfica. Preencher classe e nível de evidência.',
+    testeAutomatizado: ['tests/fase3-cardiovascular.test.ts'],
+    arquivo: 'data/mock-protocols.ts',
   },
 ];
 

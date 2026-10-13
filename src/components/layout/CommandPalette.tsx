@@ -9,6 +9,7 @@ import {
   ArrowRight,
   FileText,
   Zap,
+  Heart,
 } from 'lucide-react';
 import { CLINICAL_PROTOCOLS } from '../../../data/mock-protocols';
 import { CLINICAL_SCORES } from '../../../data/scores';
@@ -20,6 +21,7 @@ interface CommandPaletteProps {
   onNavigateHome: () => void;
   onNavigateAudit: () => void;
   onNavigateTools: () => void;
+  onNavigatePediatric: () => void;
   onOpenPatientDrawer: () => void;
 }
 
@@ -30,6 +32,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onNavigateHome,
   onNavigateAudit,
   onNavigateTools,
+  onNavigatePediatric,
   onOpenPatientDrawer,
 }) => {
   const [query, setQuery] = useState('');
@@ -138,6 +141,21 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 <div className="flex items-center gap-2.5">
                   <Calculator className="w-4 h-4 text-purple-600" />
                   <span>Ferramentas Rápidas (TFG & Infusões)</span>
+                </div>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onNavigatePediatric();
+                  onClose();
+                }}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition text-rose-600 dark:text-rose-400"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Heart className="w-4 h-4 text-rose-600 fill-current" />
+                  <span>PCR Pediátrica (PALS 2025)</span>
                 </div>
                 <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
               </button>

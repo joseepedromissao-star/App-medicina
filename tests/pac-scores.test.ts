@@ -20,10 +20,10 @@ describe('Escores de Pneumonia Adquirida na Comunidade (PAC) & Triagem', () => {
   });
 
   describe('CURB-65', () => {
-    it('critério de ureia está com ponto de corte único > 42 mg/dL', () => {
+    it('critério de ureia está com ponto de corte > 50 mg/dL conforme SBPT 2009', () => {
       const uCrit = curb65?.criteria.find((c) => c.id === 'u');
       expect(uCrit).toBeDefined();
-      expect(uCrit?.label).toContain('42 mg/dL');
+      expect(uCrit?.label).toContain('50 mg/dL');
       expect(uCrit?.points).toBe(1);
     });
 
