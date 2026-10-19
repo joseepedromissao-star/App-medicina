@@ -10,7 +10,8 @@
  *  - Só entram fármacos/energias com fonte conferida. Atropina, adenosina, cardioversão, bicarbonato, cálcio etc.
  *    NÃO estão neste módulo e devem sair como "NÃO CALCULADO" até serem cadastrados com fonte.
  *
- * Fonte principal: algoritmo de parada cardíaca pediátrica do PALS 2025 (AHA/AAP 2025) e o cartão do PALS 2025.
+ * Fonte principal: Parte 8 das Diretrizes AHA/AAP 2025 (algoritmo de parada cardíaca pediátrica, Figura 2), conferida no texto original.
+ * A repetição e a manutenção da lidocaína NÃO fazem parte do algoritmo e foram retiradas (a versão anterior usava um cartão de bolso).
  * Todos os resultados saem com validacaoClinica 'PENDENTE' até revisão por médico.
  */
 
@@ -42,8 +43,8 @@ export const PEDIATRIC_AGE_BANDS: AgeBand[] = [
   { id: 'adolescente', label: 'Adolescente (12 a 17 anos)', minMonths: 144, maxMonths: 216, weightKg: [25, 200] },
 ];
 
-export const PEDIATRIC_FONTE_ALGORITMO = 'Algoritmo de parada cardíaca pediátrica, PALS 2025 (AHA/AAP)';
-export const PEDIATRIC_FONTE_CARTAO = 'Cartão de bolso do PALS 2025 (parada cardíaca pediátrica)';
+export const PEDIATRIC_FONTE_ALGORITMO = 'AHA/AAP 2025, Parte 8 (SAV pediátrico), Figura 2: algoritmo de parada cardíaca pediátrica (Circulation 2025;152 suppl 2:S479-S537)';
+export const PEDIATRIC_FONTE_RESUMO = 'AHA 2025, Parte 1 (resumo executivo), seção de SAV pediátrico (Circulation 2025;152 suppl 2:S284-S312)';
 
 export interface PediatricValidation {
   band: AgeBand;
@@ -98,6 +99,14 @@ export interface PedDoseItem {
   explanation: CalculationExplanation;
 }
 
+export interface PedNote {
+  id: string;
+  texto: string;
+  fonte: string;
+  statusRecomendacao: 'CONFIRMADA';
+  validacaoClinica: 'PENDENTE';
+}
+
 export interface PedDefibrillation {
   firstJ: number; // 2 J/kg
   secondJ: number; // 4 J/kg
@@ -116,6 +125,7 @@ export interface PediatricArrestResult {
   warnings: string[];
   defibrillation: PedDefibrillation;
   items: PedDoseItem[];
+  notes: PedNote[]; // orientações do algoritmo que não são doses (relação compressão-ventilação, metas de PA, EtCO2)
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -270,34 +280,37 @@ export function calculatePediatricArrest(input: PediatricInput): PediatricArrest
         r2(load), 'mg', `${r2(load)} mg`, PEDIATRIC_FONTE_ALGORITMO, []
       ),
     });
-    items.push({
-      id: 'ped-lidocaina-repeticao-manutencao',
-      nome: 'Lidocaína IV/IO (repetição e manutenção)',
-      doseMg: r2(0.5 * w),
-      doseTexto: `repetição ${r2(0.5 * w)} mg (0,5 mg/kg); manutenção ${r1(20 * w)} a ${r1(50 * w)} mcg/min (20 a 50 mcg/kg/min)`,
-      tetoAplicado: false,
-      observacao: 'Valores de repetição e manutenção vêm do cartão de bolso do PALS 2025; conferir no texto da guideline antes de usar.',
-      fonte: PEDIATRIC_FONTE_CARTAO,
-      statusRecomendacao: 'VERIFICAR',
-      validacaoClinica: 'PENDENTE',
-      explanation: explain(
-        'Lidocaína na PCR pediátrica (repetição/manutenção)',
-        'Repetição (mg) = 0,5 mg/kg × peso; manutenção (mcg/min) = 20 a 50 mcg/kg/min × peso',
-        { Peso: wTxt },
-        [
-          { label: '1. Repetição', formula: '0,5 × peso', valuesSubstituted: `0,5 × ${w}`, result: `${r2(0.5 * w)} mg` },
-          { label: '2. Manutenção', formula: '(20 a 50) × peso', valuesSubstituted: `(20 a 50) × ${w}`, result: `${r1(20 * w)} a ${r1(50 * w)} mcg/min` },
-        ],
-        r2(0.5 * w), 'mg', `repetição ${r2(0.5 * w)} mg`, PEDIATRIC_FONTE_CARTAO, ['Conversão para mL/h exige a concentração da diluição, ainda não cadastrada.']
-      ),
-    });
   }
 
-  return { band, weightKg: w, weightOrigin: input.weightOrigin, warnings, defibrillation, items };
+  const mk = (id: string, texto: string, fonte: string): PedNote => ({ id, texto, fonte, statusRecomendacao: 'CONFIRMADA', validacaoClinica: 'PENDENTE' });
+  const notes: PedNote[] = [
+    mk(
+      'ped-nota-compressoes',
+      'Compressões: pelo menos 1/3 do diâmetro anteroposterior do tórax, 100 a 120 por minuto, com retorno completo do tórax e revezamento do compressor a cada 2 minutos. Sem via aérea avançada: 15:2 com 2 socorristas em pré-púberes; 30:2 com 1 socorrista (qualquer idade) ou 2 socorristas pós-púberes. Com via aérea avançada: compressões contínuas e 1 ventilação a cada 2 a 3 segundos.',
+      PEDIATRIC_FONTE_ALGORITMO
+    ),
+    mk(
+      'ped-nota-pad',
+      'Se houver monitorização invasiva da pressão arterial durante a RCP, pode ser razoável buscar pressão diastólica de pelo menos 25 mmHg em lactentes e de pelo menos 30 mmHg em crianças com 1 ano ou mais (COR 2b, LOE C-LD).',
+      PEDIATRIC_FONTE_RESUMO
+    ),
+    mk(
+      'ped-nota-etco2',
+      'Em via aérea avançada, pode-se considerar o monitoramento do CO2 expirado para avaliar a qualidade da RCP; um valor isolado de corte de EtCO2 não deve ser a única indicação para encerrar a ressuscitação.',
+      PEDIATRIC_FONTE_RESUMO
+    ),
+    mk(
+      'ped-nota-pos-rce',
+      'Após a parada em bebês e crianças, manter a pressão arterial sistólica e a média pelo menos no percentil 10 para a idade (COR 1, LOE B-NR) e monitorar a pressão arterial de forma contínua quando houver recursos (COR 1, LOE C-EO).',
+      PEDIATRIC_FONTE_RESUMO
+    ),
+  ];
+
+  return { band, weightKg: w, weightOrigin: input.weightOrigin, warnings, defibrillation, items, notes };
 }
 
 /** Texto de escopo exibido pelo app quando a calculadora pediátrica é aberta. */
 export const PEDIATRIC_SCOPE_NOTE =
-  'Módulo pediátrico em fase inicial: só parada cardiorrespiratória (epinefrina, amiodarona, lidocaína e energia de choque). Atropina, adenosina, cardioversão, bicarbonato, cálcio, fluidos, sedação e demais protocolos pediátricos NÃO estão cadastrados.';
+  'Módulo pediátrico em fase inicial: só parada cardiorrespiratória (epinefrina, amiodarona, lidocaína em dose de ataque e energia de choque). Atropina, adenosina, cardioversão, bicarbonato, cálcio, fluidos, sedação e demais protocolos pediátricos NÃO estão cadastrados.';
 
 export { ClinicalInputError };

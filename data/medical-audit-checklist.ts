@@ -614,7 +614,7 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     guidelineReference: 'Processo de validação clínica',
     status: 'CORRIGIDO_AGUARDA_REVISAO',
     notes:
-      'O Gemini marcou 63 recomendações e 27 guidelines como CONFIRMADA, e a interface exibe "Guideline conferida" para elas. Ninguém conferiu. O patch 4 devolveu para VERIFICAR 60 recomendações e 20 guidelines. Depois, 1 recomendação (o item pac-1, conferido no texto da SBPT 2009) e 1 guideline (SBPT 2009) voltaram a CONFIRMADA, o que dá 6 recomendações (triagem de sepse da SSC 2026, duração de 3 a 5 dias e corticoide da ATS 2025, estratificação da PAC pela SBPT e, na AHA 2025, as metas pós-RCE e o controle de temperatura, conferidos no documento de destaques) e 10 guidelines.',
+      'O Gemini marcou 63 recomendações e 27 guidelines como CONFIRMADA, e a interface exibe "Guideline conferida" para elas. Ninguém conferiu. O patch 4 devolveu para VERIFICAR 60 recomendações e 20 guidelines. Depois, 1 recomendação (o item pac-1, conferido no texto da SBPT 2009) e 1 guideline (SBPT 2009) voltaram a CONFIRMADA, o que dá 17 recomendações (SSC 2026, ATS 2025, SBPT 2009 e, na AHA 2025, itens de PCR, taquiarritmias e bradiarritmias conferidos no texto original) e 11 guidelines.',
     acaoNecessaria: 'O revisor muda cada item para CONFIRMADA somente após conferir o texto original.',
     arquivo: 'data/mock-protocols.ts',
   },
@@ -707,8 +707,8 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     guidelineReference: 'PALS 2025 (AHA/AAP): algoritmo de parada cardíaca pediátrica e cartão de bolso',
     status: 'PENDENTE_REVISAO_MEDICA',
     notes:
-      'Valores conferidos contra o algoritmo e o cartão do PALS 2025: epinefrina 0,01 mg/kg da solução de 0,1 mg/mL (máximo 1 mg, a cada 3 a 5 min); amiodarona 5 mg/kg em bolus (máximo 300 mg na 1ª dose e 150 mg nas seguintes, até 3 doses); lidocaína 1 mg/kg de ataque; choques de 2 J/kg, 4 J/kg e depois de 4 até 10 J/kg sem passar da dose de adulto. A repetição (0,5 mg/kg) e a manutenção (20 a 50 mcg/kg/min) da lidocaína vêm só do cartão e estão marcadas VERIFICAR. Tudo está com validação clínica pendente.',
-    acaoNecessaria: 'O revisor confere cada valor no texto da guideline, define o número da "dose de adulto" do desfibrilador do serviço e decide como exibir o limite.',
+      'Conferidos no texto original da AHA/AAP 2025 (Parte 8, Figura 2 e recomendações de desfibrilação): epinefrina 0,01 mg/kg da solução de 0,1 mg/mL com dose máxima de 1 mg; amiodarona 5 mg/kg com máximo de 300 mg e até 3 doses, com máximo de 150 mg nas seguintes; lidocaína 1 mg/kg; choques de 2 J/kg, 4 J/kg e depois de 4 até 10 J/kg ou a dose máxima de adulto. A repetição (0,5 mg/kg) e a manutenção (20 a 50 mcg/kg/min) da lidocaína foram RETIRADAS: vinham de um cartão de bolso e não constam do algoritmo nem do texto da Parte 8. Foram acrescentadas orientações do algoritmo (15:2, PAD alvo, EtCO2, PA pós-PCR). Validação clínica continua pendente.',
+    acaoNecessaria: 'O revisor confirma os valores, define o número da dose de adulto do desfibrilador do serviço e decide se deseja a lidocaína de repetição por outra fonte.',
     testeAutomatizado: ['PCR pediátrica - valores de referência', 'PCR pediátrica - lactente e tetos'],
     arquivo: 'lib/pediatric.ts',
   },
@@ -740,10 +740,10 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
     category: 'Conteúdo Clínico',
     item: 'Texto pediátrico do protocolo de PCR (escrito pelo Gemini) pode divergir do módulo',
     guidelineReference: 'PALS 2025 (AHA/AAP)',
-    status: 'PENDENTE_REVISAO_MEDICA',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
     notes:
-      'O protocolo de PCR traz doses pediátricas em texto livre, que não passam pelo módulo e não têm tetos nem validação. Atropina, adenosina, cardioversão sincronizada, bicarbonato, cálcio e fluidos pediátricos não estão no módulo e saem como "NÃO CALCULADO".',
-    acaoNecessaria: 'Remover as doses pediátricas em texto e apontar para o módulo pediátrico, ou conferir cada uma contra a guideline.',
+      'As doses pediátricas do protocolo de PCR (epinefrina, amiodarona, lidocaína e energias) foram alinhadas ao algoritmo AHA/AAP 2025 lido no texto original. Atropina, adenosina, cardioversão sincronizada, bicarbonato, cálcio e fluidos pediátricos continuam fora do módulo e saem como NÃO CALCULADO.',
+    acaoNecessaria: 'Remover do texto o que o módulo já calcula, ou apontar para ele; conferir o restante do conteúdo pediátrico.',
     arquivo: 'data/mock-protocols.ts',
   },
 
@@ -762,13 +762,25 @@ export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
   {
     id: 'audit-aha2025-highlights',
     category: 'Conteúdo Clínico',
-    item: 'PCR, taquiarritmias e bradiarritmias conferidas contra "Destaques das Diretrizes de RCP e ACE de 2025" (AHA, JN-1580)',
+    item: 'PCR, taquiarritmias e bradiarritmias conferidas contra o texto original da AHA 2025 (Partes 1, 8 e 9)',
     guidelineReference: 'AHA 2025 Guidelines for CPR and ECC (Circulation, outubro de 2025): documento de destaques em português',
     status: 'CORRIGIDO_AGUARDA_REVISAO',
     notes:
-      'Corrigidos por divergência com o documento: SpO2 pós-RCE de 92–98% para 90–98% (PaO2 60–105 mmHg); controle de temperatura de 32–36 °C por 36 a 72 h para meta de 32 a 37,5 °C por pelo menos 36 h; noradrenalina como vasopressor pós-RCE (não há evidência para recomendar um específico); EtCO2 pós-RCE de 35–40 mmHg (sem base no documento); energia de cardioversão de FA e flutter para pelo menos 200 J bifásico; critérios de angiografia coronária pós-RCE ampliados; cardioversão sincronizada após falha de manobras vagais e fármacos na taquicardia de complexo largo estável; marca-passo transvenoso na bradicardia refratária; acesso IV antes de IO; vasopressina sem vantagem sobre a epinefrina; benefício incerto de betabloqueadores, bretílio, procainamida e sotalol na FV/TV refratária; situações especiais acrescentadas (hipercalemia, opioides, gestação, hipotermia, hipertermia, LVAD). A nomenclatura "AHA/ACC" para o ACLS foi trocada por "AHA". Confirmados sem alteração: pausas < 10 s e técnica do bebê, epinefrina precoce em PCR pediátrica não chocável, 30:2 aceitável, PAM ≥ 65 mmHg, PaCO2 35–45 mmHg. O documento é um resumo e não traz classes de recomendação nem níveis de evidência.',
-    acaoNecessaria: 'Conferir no texto completo da AHA 2025 (Parte 1 e as partes de SAV adulto e pediátrico): frequência e profundidade das compressões, energias de choque na FV/TV, doses de epinefrina, amiodarona e lidocaína de adulto, atropina, adenosina, doses de sedativos e energias de TPSV e TV monomórfica. Preencher classe e nível de evidência.',
+      'Lidos na íntegra: Parte 1 (resumo executivo), Parte 8 (SAV pediátrico) e Parte 9 (SAV em adultos), incluindo as figuras dos algoritmos. Confirmados: compressões de 100 a 120/min, 5 cm ou mais, 30:2 e 1 ventilação a cada 6 s; epinefrina 1 mg a cada 3 a 5 min (COR 2a), no ciclo após o 2º choque nos ritmos chocáveis e o mais cedo possível nos não chocáveis; amiodarona 300/150 mg ou lidocaína 1 a 1,5 mg/kg e 0,5 a 0,75 mg/kg após o 3º choque; energias de cardioversão (FA 200 J, flutter 200 J, taquicardia estreita 100 J, TV monomórfica 100 J); adenosina 6 e 12 mg; amiodarona 150 mg em 10 min; procainamida com dose máxima de 17 mg/kg; atropina 1 mg até 3 mg; dopamina 5 a 20 mcg/kg/min e epinefrina 2 a 10 mcg/min. Corrigidos: (1) ERRO GRAVE, o app preferia betabloqueador EV na FA com insuficiência cardíaca de fração reduzida, e a AHA 2025 classifica betabloqueador EV e bloqueador de canal de cálcio como dano (COR 3) nessa situação descompensada; (2) lidocaína removida como alternativa na TV monomórfica estável, que a AHA não lista (amiodarona, procainamida ou sotalol, COR 2b); (3) incluídos os avisos de dano: verapamil e diltiazem na taquicardia de complexo largo, e adenosina na complexa instável, irregular ou polimórfica; (4) fármacos a evitar na FA com pré-excitação ampliados (digoxina, bloqueador de cálcio, betabloqueador e amiodarona EV); (5) SpO2 pós-RCE de 90 a 98%, controle de temperatura de 32 a 37,5 °C por pelo menos 36 h, sem vasopressor específico; (6) tempos-alvo e limiares sem base foram retirados (EtCO2 abaixo de 10 mmHg, "menos de 2 minutos", "menos de 5 minutos"). Não lidos: Parte 10 (situações especiais) e Parte 11 (cuidados pós-PCR), usados só pelas citações do resumo executivo.',
+    acaoNecessaria: 'Conferir no texto completo as Partes 10 e 11, as doses de sedativos, a dose do magnésio na torsades, a manutenção da amiodarona após 6 horas e as doses de bloqueadores de cálcio e betabloqueadores na FA; a ERC 2025 segue pendente.',
     testeAutomatizado: ['tests/fase3-cardiovascular.test.ts'],
+    arquivo: 'data/mock-protocols.ts',
+  },
+
+  {
+    id: 'audit-tep-2026',
+    category: 'Conteúdo Clínico',
+    item: 'TEP conferido contra a guideline AHA/ACC multissociedade 2026 (texto original)',
+    guidelineReference: 'AHA/ACC 2026: Guideline for the Evaluation and Management of Acute Pulmonary Embolism in Adults',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Confirmados: PERT nas categorias C a E (COR 1, B-NR); HBPM em vez de HNF nas categorias C1 a E1 que precisam de anticoagulação parenteral (COR 1, B-R); DOAC em vez de antagonista da vitamina K (COR 1, B-R); trombólise sistêmica razoável nas categorias E1 e E2 (COR 2a, C-LD), a considerar nas D1 e D2 (COR 2b) e contraindicada nas categorias A1 a C2 (COR 3: dano, B-R); alteplase 100 mg em 2 horas. Corrigido: o texto do app mandava reservar a HNF para candidatos a reperfusão e ClCr abaixo de 30, o que a guideline não diz; HBPM é preferida inclusive após trombólise ou terapia por cateter. A guideline lida não traz doses em mg/kg, então a dose de enoxaparina do registro segue sem fonte e a alteplase continua fora do registro (NÃO CALCULADO).',
+    acaoNecessaria: 'Conferir doses de HBPM e de HNF, critérios de tratamento ambulatorial, a abordagem diagnóstica (D-dímero ajustado por idade, YEARS) e os demais itens do protocolo contra o texto completo.',
     arquivo: 'data/mock-protocols.ts',
   },
 ];

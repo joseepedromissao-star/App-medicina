@@ -1,0 +1,2973 @@
+AURAMED - PATCH 12 (substitui 4 arquivos)
+
+Cada arquivo começa com "===== FILE: caminho =====" e termina com "===== END FILE =====".
+Sobrescreva cada arquivo com o conteúdo EXATO entre os marcadores (sem as linhas de marcador).
+
+MANIFESTO:
+data/mock-protocols.ts  (1703 linhas)
+lib/pediatric.ts  (316 linhas)
+lib/__tests__/pediatric.test.ts  (131 linhas)
+data/medical-audit-checklist.ts  (801 linhas)
+
+===== FILE: data/mock-protocols.ts =====
+/**
+ * AuraMed - Protocolos Clínicos de Emergência (demonstração, alinhados ao prompt v2)
+ *
+ * Regras deste arquivo:
+ *  - Doses, taxas e diluições NÃO são digitadas aqui: o motor (lib/conduta-engine.ts) as calcula a partir do
+ *    registro de fármacos e dos presets. Por isso calculatedDose/dilution ficam vazios nos itens com fármaco.
+ *  - Cada recomendação tem `fonte` e `statusRecomendacao` ('CONFIRMADA' | 'VERIFICAR').
+ *  - Referências são apenas guidelines/consensos oficiais (nome + sociedade + ano), sem autores individuais.
+ *  - Todo protocolo está com validacaoClinica 'PENDENTE' até revisão médica.
+ *  - Scores já implementados em scores.ts vão em associatedScores; os previstos vão em scoresPlanejados.
+ */
+
+import type { Patologia } from '../types/clinical';
+
+const REVISADO_EM = '2026-10-06';
+const SSC_2026 = 'Surviving Sepsis Campaign: Adult Guidelines 2026';
+const ATS_2025 = 'ATS 2025 (atualização parcial da diretriz de PAC)';
+const SBPT_2009 = 'Diretrizes brasileiras para PAC em adultos imunocompetentes (SBPT 2009)';
+const ATS_IDSA_2019 = 'ATS/IDSA 2019 (PAC em adultos)';
+
+export const CLINICAL_PROTOCOLS: Patologia[] = [
+  // ---------------------------------------------------------------------------
+  {
+    id: 'choque_septico',
+    title: 'Choque Séptico & Sepse Grave',
+    synonyms: ['Sepse', 'Choque Distributivo', 'Sepsis-3'],
+    specialty: 'Sepse & Choque',
+    cid10: ['A41.9', 'R57.2'],
+    guidelines: [
+      { nome: 'Surviving Sepsis Campaign: Adult Guidelines', sociedade: 'SCCM/ESICM', ano: 2026, status: 'CONFIRMADA' },
+      { nome: 'Sepsis-3: Third International Consensus Definitions', sociedade: 'SCCM/ESICM', ano: 2016, status: 'CONFIRMADA' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'Antimicrobiano em < 60 min no choque séptico e na sepse provável/definida',
+    targetTimeWarning: 'O atraso no antimicrobiano adequado em sepse e choque séptico associa-se a maior mortalidade.',
+    statusBadge: 'Padrão Ouro',
+    severity: 'critical',
+    summary:
+      'Sepse: disfunção orgânica potencialmente fatal causada por resposta desregulada do hospedeiro à infecção. Choque séptico: subtipo com hipotensão que exige vasopressor para manter a PAM-alvo e lactato elevado apesar da reposição volêmica adequada.',
+    diagnosticCriteria: {
+      symptoms: [
+        'Hipotensão arterial (PAS < 90 ou PAM < 65 mmHg)',
+        'Taquipneia ou dispneia súbita',
+        'Alteração do estado mental (confusão, sonolência)',
+        'Oligúria (< 0,5 mL/kg/h) ou anúria',
+        'Tempo de enchimento capilar prolongado / pele marmórea',
+      ],
+      mandatoryFindings: [
+        'Suspeita ou confirmação de foco infeccioso',
+        'Triagem por NEWS/NEWS2, MEWS ou SIRS (o qSOFA isolado não é recomendado como ferramenta única de triagem)',
+        'Necessidade de vasopressor para a PAM-alvo após reposição volêmica (define choque séptico)',
+        'Lactato sérico inicial (elevado > 2 mmol/L sustenta hipoperfusão)',
+      ],
+      redFlags: [
+        'Lactato sérico > 4,0 mmol/L',
+        'Glasgow ≤ 8 (risco de perda de via aérea; considerar proteção de via aérea)',
+        'Necessidade crescente de noradrenalina',
+        'Sinais de coagulopatia (CIVD) ou plaquetopenia aguda',
+      ],
+    },
+    associatedScores: ['news2', 'qsofa'], // NEWS2 para triagem preferencial (SSC 2026); qSOFA complementar
+    scoresPlanejados: ['mews', 'sirs', 'sofa'],
+    associatedDrugs: ['noradrenalina', 'vasopressina', 'dobutamina'],
+    conductPhases: [
+      {
+        phaseTitle: 'Reconhecimento e Ressuscitação Imediata',
+        timeWindow: '0 - 60 minutos',
+        items: [
+          {
+            id: 'cs-0',
+            title: 'Triagem de sepse com NEWS2 / MEWS / SIRS',
+            detail:
+              'Triar com escore de alerta precoce (NEWS/NEWS2, MEWS) ou SIRS. O qSOFA, se usado, é complementar: resultado negativo NÃO exclui sepse.',
+            priority: 'emergency',
+            timing: '< 15 min',
+            fonte: SSC_2026,
+            statusRecomendacao: 'CONFIRMADA',
+          },
+          {
+            id: 'cs-1',
+            title: 'Coleta de Lactato Sérico Inicial',
+            detail: 'Repetir para avaliar depuração conforme a evolução clínica [intervalo e meta a confirmar no texto da guideline].',
+            priority: 'emergency',
+            timing: '< 15 min',
+            fonte: SSC_2026,
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'cs-2',
+            title: 'Hemoculturas Antes do Antimicrobiano',
+            detail: 'Coletar culturas de acordo com o foco, sem atrasar o antimicrobiano além do tempo-limite da guideline [limite de tempo a confirmar].',
+            priority: 'emergency',
+            timing: '< 30 min',
+            fonte: SSC_2026,
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'cs-3',
+            title: 'Antimicrobiano de Amplo Espectro na 1ª Hora',
+            detail:
+              'Primeira dose intravenosa em até 1 hora no choque séptico e na sepse provável/definida, cobrindo os patógenos prováveis conforme o foco. Esquema e doses: cadastrar no registro de fármacos e validar.',
+            priority: 'emergency',
+            timing: '< 60 min',
+            fonte: SSC_2026,
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'cs-4',
+            title: 'Expansão Volêmica com Cristaloide Balanceado',
+            detail:
+              'Cristaloide (preferência por balanceado) em volume por kg conforme a guideline [volume e janela a confirmar no texto de 2026]. Reavaliar responsividade a volume; cautela em insuficiência cardíaca e doença renal.',
+            priority: 'emergency',
+            timing: '< 60 min',
+            fonte: SSC_2026,
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'cs-5',
+            title: 'Vasopressor Precoce (Noradrenalina)',
+            detail:
+              'Iniciar noradrenalina em bomba de infusão contínua se a PAM-alvo não for atingida com a reposição volêmica, sem aguardar o término da expansão em hipotensão grave [conferir texto da guideline]. Meta de PAM: 65 mmHg, aceitando ±5; em ≥ 65 anos, a guideline sugere 60–65 mmHg.',
+            priority: 'emergency',
+            timing: '< 30 min',
+            fonte: SSC_2026,
+            statusRecomendacao: 'VERIFICAR',
+            drugPrescription: {
+              drugId: 'noradrenalina',
+              drugName: 'Noradrenalina (Hemitartarato)',
+              calculatedDose: '', // preenchido pelo motor (preset padrão)
+              route: 'EV em BIC contínua',
+              dilution: '', // preenchido pelo motor (preset padrão)
+              safetyDoubleCheck: true,
+              targetParameter: 'PAM-alvo (SSC 2026: 65 mmHg, ±5; 60–65 mmHg se ≥ 65 anos)',
+            },
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Estabilização e Suporte Avançado',
+        timeWindow: '1 - 6 horas',
+        items: [
+          {
+            id: 'cs-6',
+            title: 'Acesso Central e Pressão Arterial Invasiva',
+            detail:
+              'Garantir acesso seguro para vasoativos e monitorização contínua da PAM. Não atrasar o início do vasopressor à espera do acesso central: início por via periférica conforme protocolo institucional [conferir texto da guideline].',
+            priority: 'high',
+            fonte: SSC_2026,
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'cs-7',
+            title: 'Associar Vasopressina como 2º Vasopressor',
+            detail:
+              'A guideline sugere adicionar vasopressina em vez de escalar a noradrenalina; o limiar habitual fica na faixa de 0,25–0,5 mcg/kg/min de noradrenalina [confirmar limiar e dose no texto de 2026].',
+            priority: 'high',
+            fonte: SSC_2026,
+            statusRecomendacao: 'VERIFICAR',
+            drugPrescription: {
+              drugId: 'vasopressina',
+              drugName: 'Vasopressina',
+              calculatedDose: '', // preenchido pelo motor
+              route: 'EV em BIC contínua',
+              dilution: '', // preenchido pelo motor
+              safetyDoubleCheck: true,
+              targetParameter: 'Poupador de catecolaminas',
+            },
+          },
+          {
+            id: 'cs-8',
+            title: 'Avaliar Inotrópico (Dobutamina) ou Adrenalina Adjuvante',
+            detail:
+              'Se houver disfunção cardíaca com hipoperfusão persistente apesar de volume e vasopressores, considerar dobutamina ou adrenalina (evidência de certeza muito baixa) [confirmar no texto da guideline]. Confirmar a disfunção por ecocardiograma à beira-leito.',
+            priority: 'high',
+            fonte: SSC_2026,
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'Necessidade de vasopressor para manutenção da PAM',
+      'Hipoperfusão persistente (lactato elevado ou em ascensão)',
+      'Necessidade de suporte ventilatório invasivo ou de alto fluxo',
+      'Disfunção orgânica multissistêmica progressiva',
+      '(critérios finais de admissão: definir conforme protocolo institucional)',
+    ],
+    references: [
+      'Surviving Sepsis Campaign (SCCM/ESICM): Adult Guidelines for the Management of Sepsis and Septic Shock, 2026.',
+      'Sepsis-3 (SCCM/ESICM): Third International Consensus Definitions for Sepsis and Septic Shock, 2016.',
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
+    id: 'sca_iam_sst',
+    title: 'Síndrome Coronariana Aguda sem Supra de ST',
+    synonyms: ['SCA sem SST', 'Angina Instável', 'IAM sem Supra'],
+    specialty: 'Cardiologia',
+    cid10: ['I20.0', 'I21.4'],
+    guidelines: [
+      { nome: 'ACC/AHA/ACEP/NAEMSP/SCAI Guideline for the Management of Acute Coronary Syndromes', sociedade: 'ACC/AHA', ano: 2025, status: 'VERIFICAR' },
+      { nome: 'ESC Guidelines for the Management of Acute Coronary Syndromes', sociedade: 'ESC', ano: 2023, status: 'VERIFICAR' },
+      { nome: 'Diretriz de Síndromes Coronarianas Agudas sem Supra de ST (edição vigente)', sociedade: 'SBC', ano: 2021, status: 'VERIFICAR' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'ECG em < 10 min | Estratificação precoce conforme risco',
+    targetTimeWarning: 'Atraso no ECG e na estratificação eleva eventos isquêmicos recorrentes e arritmias ventriculares.',
+    statusBadge: 'Alta Prioridade',
+    severity: 'high',
+    summary:
+      'Espectro isquêmico agudo por instabilização de placa aterosclerótica sem oclusão transmural persistente, com dor anginosa, alterações de repolarização e/ou elevação de troponina.',
+    diagnosticCriteria: {
+      symptoms: [
+        'Dor precordial opressiva ou em queimação, com irradiação para MSE, mandíbula ou dorso',
+        'Dor em repouso prolongada ou em crescendo recente',
+        'Equivalentes anginosos: dispneia súbita, sudorese fria, náuseas sem causa aparente',
+      ],
+      mandatoryFindings: [
+        'ECG de 12 derivações em até 10 minutos, com análise de supra de ST (que muda a via de conduta)',
+        'Troponina de alta sensibilidade seriada, em algoritmo validado (0h/1h ou 0h/2h)',
+      ],
+      redFlags: [
+        'Instabilidade hemodinâmica, choque cardiogênico ou Killip III/IV',
+        'Angina refratária ao tratamento clínico',
+        'Arritmias ventriculares sustentadas ou parada cardiorrespiratória revertida',
+      ],
+    },
+    associatedScores: ['heart_score', 'timi_sca', 'grace_score'],
+    scoresPlanejados: [],
+    associatedDrugs: ['enoxaparina'],
+    conductPhases: [
+      {
+        phaseTitle: 'Conduta Imediata no Pronto-Socorro',
+        timeWindow: '0 - 30 minutos',
+        items: [
+          {
+            id: 'sca-1',
+            title: 'ECG de 12 derivações em < 10 min',
+            detail:
+              'Procurar infradesnivelamento de ST, inversão de onda T ou alteração dinâmica; descartar supra de ST. Se dor contínua e ECG inicial normal, considerar derivações posteriores e direitas e repetir o ECG.',
+            priority: 'emergency',
+            timing: '< 10 min',
+            fonte: 'Guidelines de SCA (ACC/AHA 2025, ESC 2023)',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'sca-2',
+            title: 'Antiagregação Plaquetária',
+            detail:
+              'AAS de ataque [dose conforme guideline adotada; confirmar a faixa]. Inibidor de P2Y12: o momento de início depende da estratégia — a ESC 2023 não recomenda pré-tratamento de rotina quando se planeja estratégia invasiva precoce com anatomia desconhecida; confirmar a posição da ACC/AHA 2025 e do protocolo local antes de prescrever.',
+            priority: 'emergency',
+            timing: '< 30 min',
+            fonte: 'ESC 2023; ACC/AHA 2025 (conferir)',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'sca-3',
+            title: 'Anticoagulação Parenteral',
+            detail:
+              'Anticoagulação parenteral conforme a estratégia (HBPM ou HNF). Dose e ajuste renal são calculados pelo motor a partir do registro de fármacos [confirmar regime por indicação].',
+            priority: 'emergency',
+            fonte: 'Guidelines de SCA (conferir)',
+            statusRecomendacao: 'VERIFICAR',
+            drugPrescription: {
+              drugId: 'enoxaparina',
+              drugName: 'Enoxaparina Sódica',
+              calculatedDose: '', // preenchido pelo motor (registro de fármacos)
+              route: 'SC',
+              dilution: 'Seringa pré-cheia (sem diluição)',
+              safetyDoubleCheck: true,
+              targetParameter: 'Anticoagulação sem sangramento',
+            },
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'Instabilidade hemodinâmica ou arritmias ventriculares',
+      'Angina refratária ou sinais de choque cardiogênico',
+      'Alto risco isquêmico/hemodinâmico conforme escores e protocolo institucional (HEART alto indica alto risco de eventos, não é critério isolado de UTI)',
+    ],
+    references: [
+      'ACC/AHA/ACEP/NAEMSP/SCAI: Guideline for the Management of Patients With Acute Coronary Syndromes, 2025 (conferir edição).',
+      'ESC: Guidelines for the Management of Acute Coronary Syndromes, 2023.',
+      'SBC: Diretriz de Síndromes Coronarianas Agudas sem Supra de ST (edição vigente).',
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
+    id: 'pac_grave',
+    title: 'Pneumonia Adquirida na Comunidade (PAC)',
+    synonyms: ['PAC', 'Pneumonia Comunitária', 'Infecção do Trato Respiratório Inferior'],
+    specialty: 'Pneumologia',
+    cid10: ['J18.9'],
+    guidelines: [
+      { nome: 'Atualização parcial da diretriz de PAC (4 questões)', sociedade: 'ATS', ano: 2025, status: 'CONFIRMADA' },
+      { nome: 'Diagnosis and Treatment of Adults with Community-acquired Pneumonia', sociedade: 'ATS/IDSA', ano: 2019, status: 'CONFIRMADA' },
+      { nome: 'Diretrizes brasileiras para pneumonia adquirida na comunidade em adultos imunocompetentes', sociedade: 'SBPT', ano: 2009, status: 'CONFIRMADA' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'Antibiótico precoce; < 1 hora se houver sepse/choque séptico',
+    targetTimeWarning: 'Atraso na antibioticoterapia em pacientes com sepse ou choque séptico associados à pneumonia aumenta a mortalidade.',
+    statusBadge: 'Protocolo Institucional',
+    severity: 'moderate',
+    summary:
+      'Infecção aguda do parênquima pulmonar adquirida na comunidade, com consolidação radiológica, tosse, febre e necessidade de estratificar a gravidade (CURB-65, PSI e critérios ATS/IDSA) para definir o local de tratamento.',
+    diagnosticCriteria: {
+      symptoms: [
+        'Tosse com expectoração purulenta ou ferruginosa',
+        'Febre (> 38 °C) ou hipotermia em idosos',
+        'Dispneia, taquipneia ou dor pleurítica',
+        'Estertores crepitantes, macicez à percussão ou sopro tubário',
+      ],
+      mandatoryFindings: [
+        'Imagem com novo infiltrado/consolidação: radiografia de tórax; o ultrassom pulmonar é alternativa diagnóstica (ATS 2025)',
+        'Estratificação de gravidade (CURB-65 e/ou PSI e critérios ATS/IDSA) para definir o local de tratamento',
+        'Triagem de sepse (NEWS2/MEWS/SIRS) em pacientes internados',
+      ],
+      redFlags: [
+        'CURB-65 ≥ 3 pontos ou PSI Classe IV-V',
+        'Critérios ATS/IDSA de PAC grave (1 critério maior ou ≥ 3 menores)',
+        'SpO2 < 90% em ar ambiente ou PaO2/FiO2 ≤ 250',
+        'Choque séptico ou necessidade de suporte ventilatório invasivo',
+        'NEWS2 ≥ 7 pontos (alto risco clínico)',
+      ],
+    },
+    associatedScores: ['curb_65', 'crb_65', 'ats_idsa_pac_grave', 'psi_port', 'news2'],
+    scoresPlanejados: [],
+    associatedDrugs: [], // sem regime no registro (não calculados): ceftriaxona, azitromicina, amoxicilina, levofloxacino
+    conductPhases: [
+      {
+        phaseTitle: 'Estratificação e Antibioticoterapia',
+        timeWindow: '0 - 60 minutos',
+        items: [
+          {
+            id: 'pac-1',
+            title: 'Estratificar a Gravidade e Definir Local de Tratamento',
+            detail:
+              'CURB-65 conforme a SBPT 2009 (confusão mental com teste mental abreviado ≤ 8, ureia > 50 mg/dL, FR ≥ 30, PAS < 90 ou PAD ≤ 60, idade ≥ 65): 0–1 ponto = provável tratamento ambulatorial; 2 = considerar internação; 3 ou mais = tratar como PAC grave (4–5: avaliar UTI). O escore é auxiliar: a decisão cabe ao médico, considerando comorbidades, SpO2 < 90%, extensão radiológica, fatores sociais e econômicos e aceitabilidade da via oral. Sem ureia disponível, usar o CRB-65 (mesma fonte, sem o critério de ureia). PSI e critérios ATS/IDSA de PAC grave permanecem como ferramentas adicionais; triagem de sepse com NEWS2.',
+            priority: 'emergency',
+            timing: '< 15 min',
+            fonte: `${SBPT_2009}; ${ATS_IDSA_2019}`,
+            statusRecomendacao: 'CONFIRMADA',
+          },
+          {
+            id: 'pac-2',
+            title: 'Início Precoce de Antimicrobiano Empírico',
+            detail:
+              'Esquema empírico conforme a gravidade e o local de tratamento (ATS/IDSA 2019: β-lactâmico + macrolídeo, ou fluoroquinolona respiratória, em internados não graves). Doses por peso e função renal serão calculadas quando os fármacos forem cadastrados no registro e validados.',
+            priority: 'emergency',
+            timing: '< 60 min',
+            fonte: ATS_IDSA_2019,
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'pac-3',
+            title: 'Duração do Tratamento',
+            detail:
+              'Em pacientes estáveis com PAC não grave, a ATS 2025 sugere tratamento curto de 3 a 5 dias (recomendação condicional), com reavaliação clínica antes da suspensão.',
+            priority: 'high',
+            fonte: ATS_2025,
+            statusRecomendacao: 'CONFIRMADA',
+          },
+          {
+            id: 'pac-4',
+            title: 'Corticoide Sistêmico',
+            detail:
+              'ATS 2025: recomendação forte contra corticoide sistêmico em internados com PAC NÃO grave; o uso fica restrito à PAC grave internada, e não é sugerido de rotina na pneumonia grave por influenza. Tema em evolução: estudo REMAP-CAP de 2025 não mostrou benefício significativo, e recomendações futuras podem mudar.',
+            priority: 'high',
+            fonte: ATS_2025,
+            statusRecomendacao: 'CONFIRMADA',
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'Choque séptico com necessidade de vasopressor (critério maior ATS/IDSA)',
+      'Insuficiência respiratória com ventilação mecânica invasiva (critério maior ATS/IDSA)',
+      'Critérios ATS/IDSA de PAC grave (1 critério maior ou ≥ 3 menores) [conferir contagem no texto da guideline]',
+    ],
+    references: [
+      'ATS: atualização parcial da diretriz de pneumonia adquirida na comunidade, 2025.',
+      'ATS/IDSA: Diagnosis and Treatment of Adults with Community-acquired Pneumonia, 2019.',
+      'SBPT/SBI: diretriz brasileira de pneumonia adquirida na comunidade (edição vigente).',
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
+    id: 'tep_agudo',
+    title: 'Tromboembolismo Pulmonar Agudo (TEP)',
+    synonyms: ['TEP', 'Embolia Pulmonar', 'Tromboembolismo Venoso', 'TEV'],
+    specialty: 'Pneumologia',
+    cid10: ['I26.0', 'I26.9'],
+    guidelines: [
+      { nome: 'Guideline for the Evaluation and Management of Acute Pulmonary Embolism in Adults', sociedade: 'AHA/ACC/CHEST/SCAI/SVM', ano: 2026, status: 'CONFIRMADA' },
+      { nome: 'ESC Guidelines for the Diagnosis and Management of Acute Pulmonary Embolism', sociedade: 'ESC', ano: 2019, status: 'CONFIRMADA' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'Anticoagulação imediata na suspeita alta; Reperfusão de emergência se Choque (Cat E)',
+    targetTimeWarning: 'O atraso na anticoagulação ou na reperfusão no choque cardiogênico eleva exponencialmente a mortalidade precoce.',
+    statusBadge: 'Alta Prioridade',
+    severity: 'critical',
+    summary:
+      'Oclusão aguda da circulação arterial pulmonar por trombos do sistema venoso profundo. A estratificação segue as novas Categorias Clínicas AHA/ACC 2026 (A a E), que substituem a classificação binária antiga e orientam o local de cuidado, anticoagulação preferencial (HBPM vs DOACs vs HNF) e terapias avançadas de reperfusão.',
+    diagnosticCriteria: {
+      symptoms: [
+        'Dispneia de início súbito e dor torácica pleurítica',
+        'Taquipneia sustentada (> 20 irpm) e taquicardia sinusal inexplicada',
+        'Síncope ou pré-síncope (sinal de comprometimento hemodinâmico)',
+        'Hemoptise e tosse aguda',
+        'Sinais unilaterais de TVP (edema assimétrico, dor em panturrilha)',
+      ],
+      mandatoryFindings: [
+        'Estratificação de probabilidade pré-teste pelo Escore de Wells (≤ 4: improvável; > 4: provável)',
+        'Se Wells ≤ 4: D-dímero de alta sensibilidade (ajustado pela idade se > 50 anos: idade × 10 mcg/L); se normal, TEP excluído',
+        'Se Wells > 4 ou D-dímero elevado: Angiotomografia de artérias pulmonares (exame padrão-ouro)',
+        'Avaliação de disfunção de ventrículo direito: ecocardiograma transtorácico ou relação VD/VE na angio-TC',
+        'Biomarcadores cardíacos de necrose e estiramento: Troponina ultrassensível e BNP/NT-proBNP',
+      ],
+      redFlags: [
+        'Falência cardiopulmonar / Choque cardiogênico com hipotensão persistente (AHA/ACC Categoria E1/E2)',
+        'Falência cardiopulmonar incipiente: choque normotensivo com lactato elevado (Categoria D2) ou hipotensão transitória (D1)',
+        'Disfunção de VD combinada com troponina ou BNP elevados (Categoria C3)',
+        'Síncope na apresentação clínica inicial',
+        'PCR ou AESP associada à hipoxemia grave',
+      ],
+    },
+    associatedScores: ['aha_acc_2026_tep', 'wells_tep', 'spesi'],
+    scoresPlanejados: [],
+    associatedDrugs: ['enoxaparina'], // sem regime no registro (não calculados): heparina_nf, alteplase
+    conductPhases: [
+      {
+        phaseTitle: 'Estratificação Diagnóstica e Mobilização (0 - 30 min)',
+        timeWindow: '0 - 30 minutos',
+        items: [
+          {
+            id: 'tep-1',
+            title: 'Probabilidade Pré-Teste com Escore de Wells',
+            detail:
+              'Calcular Escore de Wells. Se ≤ 4 (improvável), solicitar D-dímero com ponto de corte ajustado pela idade (> 50 anos: idade × 10 mcg/L) — se normal, TEP está descartado sem imagem. Se > 4 (provável), prosseguir diretamente para Angiotomografia Pulmonar sem aguardar D-dímero.',
+            priority: 'emergency',
+            timing: '< 15 min',
+            fonte: 'AHA/ACC 2026 / ESC 2019',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'tep-2',
+            title: 'Classificação nas Categorias Clínicas AHA/ACC 2026 (A a E) & PERT',
+            detail:
+              'Estratificar o paciente confirmado em Categorias A a E da diretriz AHA/ACC 2026. Para Categorias C, D e E, a convocação do time multidisciplinar de resposta a embolia pulmonar (PERT) é recomendação Classe 1 da diretriz.',
+            priority: 'emergency',
+            timing: '< 30 min',
+            fonte: 'AHA/ACC 2026',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Anticoagulação e Terapias Avançadas de Reperfusão (30 - 60 min)',
+        timeWindow: '30 - 60 minutos',
+        items: [
+          {
+            id: 'tep-3',
+            title: 'Anticoagulação Parenteral Imediata',
+            detail:
+              'A anticoagulação deve ser iniciada (COR 1, B-R). Em pacientes das categorias C1 a E1 que precisam de anticoagulação parenteral, a heparina de baixo peso molecular é recomendada em vez da heparina não fracionada (COR 1, B-R); após trombólise sistêmica ou terapia por cateter, a HBPM também é preferida à HNF. Quando adequado, anticoagulante oral direto é recomendado em vez de antagonista da vitamina K (COR 1, B-R). Em obesidade grau III (IMC acima de 40), pode ser razoável reduzir a dose da HBPM (COR 2b, C-LD). A dose de enoxaparina é calculada pelo motor a partir do registro de fármacos (regime e ajuste renal pendentes de validação); a guideline lida não traz doses em mg/kg. [Uso e dose de HNF em insuficiência renal grave ou antes de reperfusão avançada: conferir no texto completo.]',
+            priority: 'emergency',
+            timing: '< 30 min',
+            fonte: 'Diretriz AHA/ACC multissociedade 2026 de embolia pulmonar aguda em adultos, recomendações de anticoagulação inicial',
+            statusRecomendacao: 'VERIFICAR',
+            drugPrescription: {
+              drugId: 'enoxaparina',
+              drugName: 'Enoxaparina Sódica (HBPM)',
+              calculatedDose: '', // preenchido pelo motor
+              route: 'SC',
+              dilution: 'Seringa pré-cheia sem diluição',
+              safetyDoubleCheck: true,
+              targetParameter: 'Anticoagulação plena sem sangramento',
+            },
+          },
+          {
+            id: 'tep-4',
+            title: 'Terapias Avançadas de Reperfusão (Trombólise / Cateter / Cirurgia)',
+            detail:
+              'Trombólise sistêmica: nas categorias E1 e E2, com risco de sangramento aceitável, é razoável associá-la à anticoagulação em vez de anticoagular apenas (COR 2a, C-LD); nas categorias D1 e D2, pode ser considerada (COR 2b, C-LD); na categoria C3, a utilidade é incerta (COR 2b); nas categorias A1 a C2, NÃO deve ser usada (COR 3: dano, B-R). Dose padrão de alteplase: 100 mg em 2 horas; doses menores podem ser consideradas para reduzir sangramento (COR 2b, C-LD). Avaliar contraindicações e risco de sangramento antes de decidir, com a equipe de resposta a embolia pulmonar (PERT). A dose do app não é calculada pelo motor, pois a alteplase não está cadastrada no registro de fármacos.',
+            priority: 'emergency',
+            timing: '< 60 min',
+            fonte: 'Diretriz AHA/ACC multissociedade 2026 de embolia pulmonar aguda em adultos, recomendações de trombólise sistêmica',
+            statusRecomendacao: 'VERIFICAR',
+            drugPrescription: {
+              drugId: 'alteplase',
+              drugName: 'Alteplase (rt-PA)',
+              calculatedDose: '100 mg',
+              route: 'EV em BIC contínua',
+              dilution: '100 mg em 100 mL de água para injeção (1 mg/mL) em 2 horas',
+              safetyDoubleCheck: true,
+              targetParameter: 'Desobstrução vascular pulmonar e alívio de pós-carga de VD',
+            },
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Suporte Hemodinâmico do Ventrículo Direito e UTI (1 - 24 h)',
+        timeWindow: '1 - 24 horas',
+        items: [
+          {
+            id: 'tep-5',
+            title: 'Otimização Hemodinâmica e Manejo de Fluidos',
+            detail:
+              'EVITAR sobrecarga hídrica excessiva no ventrículo direito (a dilatação aguda de VD piora o débito cardíaco por interdependência ventricular). Alíquotas pequenas (≤ 250–500 mL) apenas se hipovolemia. Noradrenalina precoce para manter a pressão de perfusão coronariana do VD.',
+            priority: 'high',
+            timing: '< 2 horas',
+            fonte: 'AHA/ACC 2026 / ESC 2019',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'tep-6',
+            title: 'Transição Terapêutica para Anticoagulante Oral (DOACs)',
+            detail:
+              'Em pacientes estabilizados elegíveis (Categorias A, B e C), os anticoagulantes orais de ação direta (DOACs — Apixabana ou Rivaroxabana) são a modalidade preferida de Classe 1 sobre antagonistas de vitamina K (varfarina), dispensando monitorização laboratorial frequente.',
+            priority: 'routine',
+            timing: '24 - 48 horas',
+            fonte: 'AHA/ACC 2026',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'AHA/ACC Categoria E1 ou E2: Choque cardiogênico evidente, hipotensão persistente ou parada cardiorrespiratória revertida',
+      'AHA/ACC Categoria D1 ou D2: Falência cardiopulmonar incipiente, choque normotensivo com lactato elevado ou hipotensão transitória',
+      'Pacientes submetidos a trombólise sistêmica, trombectomia por cateter ou embolectomia cirúrgica',
+      'AHA/ACC Categoria C3 com instabilidade respiratória, necessidade de suporte de oxigênio em alto fluxo ou taquicardia desproporcional',
+    ],
+    references: [
+      'AHA/ACC/CHEST/SCAI/SVM: Guideline for the Evaluation and Management of Acute Pulmonary Embolism in Adults, Feb 2026.',
+      'ESC: Guidelines for the Diagnosis and Management of Acute Pulmonary Embolism Developed in Collaboration with the ERS, 2019.',
+      'Jiménez D, et al. Simplification of the Pulmonary Embolism Severity Index (sPESI). Arch Intern Med 2010.',
+      'Wells PS, et al. Derivation of a simple clinical model to categorize patients with suspected pulmonary embolism. Thromb Haemost 2000.',
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  // FASE 3: PROTOCOLOS CARDIOVASCULARES
+  // ---------------------------------------------------------------------------
+  {
+    id: 'pcr_adulto_pediatrica',
+    title: 'Parada Cardiorrespiratória (Adulto e Pediátrica)',
+    synonyms: ['PCR', 'Parada Cardíaca', 'Ressuscitação Cardiopulmonar', 'RCP', 'ACLS', 'PALS'],
+    specialty: 'Cardiologia',
+    cid10: ['I46.0', 'I46.9'],
+    guidelines: [
+      { nome: 'AHA Guidelines for CPR and Emergency Cardiovascular Care', sociedade: 'AHA', ano: 2025, status: 'CONFIRMADA' },
+      { nome: 'ERC Guidelines for Resuscitation: Adult and Paediatric Life Support', sociedade: 'ERC', ano: 2025, status: 'VERIFICAR' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'RCP de alta qualidade imediata e desfibrilação o mais cedo possível nos ritmos chocáveis',
+    targetTimeWarning: 'A cada minuto sem compressões torácicas de alta qualidade ou desfibrilação, a sobrevida cai em 7% a 10%.',
+    statusBadge: 'Alta Prioridade',
+    severity: 'critical',
+    summary:
+      'Cessação súbita e catastrófica da atividade mecânica cardíaca efetiva. O manejo segue as diretrizes AHA 2025 e ERC 2025, priorizando compressões ininterruptas de alta qualidade, desfibrilação precoce em ritmos chocáveis (FV/TV sem pulso), administração cronometrada de vasopressores/antiarrítmicos e rastreamento ativo de causas reversíveis (5H e 5T).',
+    diagnosticCriteria: {
+      symptoms: [
+        'Vítima inconsciente / não responsiva a estímulo tátil e sonoro',
+        'Ausência de respiração ou padrão de gasping agônico',
+        'Ausência de pulso central palpável por mais de 10 segundos (carotídeo em adultos, braquial/femoral em lactentes)',
+      ],
+      mandatoryFindings: [
+        'Monitorização imediata com monitor cardíaco ou pás do desfibrilador',
+        'Identificação do ritmo de parada: Chocável (FV / TV sem pulso) vs Não chocável (AESP / Assistolia)',
+        'Capnografia em onda (EtCO2 contínua): confirma intubação endotraqueal e monitora qualidade das compressões (EtCO2 > 10–20 mmHg)',
+      ],
+      redFlags: [
+        'Pausas na compressão torácica superiores a 10 segundos',
+        'Assistolia com onda reta em derivação única sem conferência do protocolo da linha reta (cabos, ganho e derivação)',
+        'Hiperventilação excessiva (aumenta a pressão intratorácica e reduz o retorno venoso e débito cardíaco durante RCP)',
+      ],
+    },
+    associatedScores: ['pcr_h_t'],
+    scoresPlanejados: [],
+    associatedDrugs: ['noradrenalina', 'dobutamina'],
+    conductPhases: [
+      {
+        phaseTitle: 'Suporte Básico e Ritmo Inicial de Parada',
+        timeWindow: '0 - 2 minutos',
+        items: [
+          {
+            id: 'pcr-1',
+            title: 'Compressões Torácicas de Alta Qualidade',
+            detail:
+              'Frequência de 100 a 120 compressões por minuto, com profundidade de pelo menos 5 cm (2 polegadas) em adultos e de pelo menos 1/3 do diâmetro anteroposterior do tórax em bebês e crianças. Permitir o retorno completo do tórax e minimizar interrupções (em bebês e crianças, pausas menores que 10 segundos). Revezar o compressor a cada 2 minutos ou antes, se cansado. Sem via aérea avançada: relação 30:2 (em pediatria, 15:2 com 2 socorristas em pré-púberes). Em bebês, comprimir com a base de uma das mãos ou com a técnica dos 2 polegares circundando o tórax; a técnica de 2 dedos não é mais recomendada. Comprimir em superfície firme, com o socorrista posicionado de modo que o joelho fique alinhado ao tórax do paciente (de joelhos ao lado ou com banco).',
+            priority: 'emergency',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 2; AHA/AAP 2025 Parte 8: Suporte Avançado de Vida Pediátrico (Circulation 2025;152 suppl 2:S479-S537), Figura 2; AHA 2025 Parte 1: Resumo Executivo (Circulation 2025;152 suppl 2:S284-S312), pp. S292-S293',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+          {
+            id: 'pcr-2',
+            title: 'Desfibrilador e Checagem de Ritmo',
+            detail:
+              'Instalar pás ou eletrodos adesivos. Em adultas, pode ser aceitável ajustar a posição do sutiã em vez de removê-lo. FV/TV sem pulso: choque o mais rápido possível. Adulto: desfibrilador bifásico é preferível (COR 2a, B-R); usar a energia recomendada pelo fabricante (por exemplo, dose inicial de 120 a 200 J) e, se desconhecida, a máxima disponível; choques seguintes com energia equivalente, podendo-se considerar energias maiores; monofásico: 360 J. A estratégia de choque único é preferível à de choques empilhados (COR 2a, B-NR). Pediátrico: 1º choque 2 J/kg, 2º choque 4 J/kg e choques seguintes de pelo menos 4 J/kg, até 10 J/kg ou a dose máxima de adulto. Reiniciar a RCP por 2 minutos logo após cada choque. A utilidade da desfibrilação com mudança de vetor e da desfibrilação sequencial dupla na FV/TV refratária não foi estabelecida (COR 2b, B-R).',
+            priority: 'emergency',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 2 e recomendações de desfibrilação; AHA/AAP 2025 Parte 8: Suporte Avançado de Vida Pediátrico (Circulation 2025;152 suppl 2:S479-S537), Figura 2',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Suporte Avançado e Manejo Farmacológico (AHA 2025 / ERC 2025)',
+        timeWindow: '2 - 10 minutos',
+        items: [
+          {
+            id: 'pcr-3',
+            title: 'Via Aérea Avançada e Monitorização de EtCO2',
+            detail:
+              'Dispositivo supraglótico ou intubação orotraqueal, com capnografia contínua em forma de onda para confirmar e monitorar o posicionamento. Sem via aérea avançada: relação 30:2. Com via aérea avançada: compressões contínuas com 1 ventilação a cada 6 segundos (10 por minuto) em adultos e 1 ventilação a cada 2 a 3 segundos em bebês e crianças. Evitar hiperventilação e hipoventilação, com cada ventilação produzindo elevação visível do tórax. Se o EtCO2 estiver baixo ou em queda, reavaliar a qualidade da RCP.',
+            priority: 'emergency',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 2; AHA/AAP 2025 Parte 8: Suporte Avançado de Vida Pediátrico (Circulation 2025;152 suppl 2:S479-S537), Figura 2; AHA 2025 Parte 1: Resumo Executivo (Circulation 2025;152 suppl 2:S284-S312), p. S293',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+          {
+            id: 'pcr-4',
+            title: 'Vasopressor durante a RCP: Adrenalina (Epinefrina)',
+            detail:
+              'Adulto: Adrenalina 1 mg IV/IO a cada 3 a 5 minutos (epinefrina, COR 2a, B-R); a administração de epinefrina é recomendada (COR 1, B-R). Acesso: tentar primeiro o IV (COR 1, A); o IO é razoável se o IV não for bem-sucedido ou viável (COR 2a, A). Ritmos não chocáveis (AESP/assistolia): administrar o mais rápido possível (COR 2a, B-NR). Ritmos chocáveis (FV/TV): é razoável administrar após a falha das tentativas iniciais de desfibrilação (COR 2a, B-NR); no algoritmo, no ciclo seguinte ao 2º choque. Vasopressina isolada ou associada à epinefrina não oferece vantagem. Pediátrico: 0,01 mg/kg IV/IO (0,1 mL/kg da solução de 0,1 mg/mL), dose máxima de 1 mg, a cada 3 a 5 minutos; em ritmo não chocável, administrar o mais cedo possível (COR 2a, C-LD); em ritmo chocável, pode ser razoável após 2 tentativas de desfibrilação ou antes, se a desfibrilação rápida não for possível (COR 2b, C-LD).',
+            priority: 'emergency',
+            timing: 'A cada 3-5 min',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 2 e recomendações de vasopressores e acesso; AHA/AAP 2025 Parte 8: Suporte Avançado de Vida Pediátrico (Circulation 2025;152 suppl 2:S479-S537), Figura 2 e AHA 2025 Parte 1: Resumo Executivo (Circulation 2025;152 suppl 2:S284-S312), p. S294',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+          {
+            id: 'pcr-5',
+            title: 'Antiarrítmico em FV / TV sem pulso refratária',
+            detail:
+              'Após o 3º choque, se a FV/TV sem pulso persistir: Amiodarona 300 mg em bólus (2ª dose de 150 mg) OU lidocaína (1ª dose de 1 a 1,5 mg/kg; 2ª dose de 0,5 a 0,75 mg/kg), IV/IO; ambas podem ser consideradas na FV/TV sem pulso que não responde à desfibrilação (COR 2b, B-R). Pediátrico: amiodarona 5 mg/kg em bólus (máximo 300 mg; pode repetir até 3 doses, com máximo de 150 mg nas seguintes) ou lidocaína 1 mg/kg. Em adultos, o benefício de betabloqueadores, bretílio, procainamida e sotalol na FV/TV sem pulso refratária é incerto (COR 2b, C-LD). Não são recomendados de rotina na PCR: cálcio, bicarbonato de sódio e magnésio (COR 3: sem benefício, B-R); os corticoides têm benefício incerto (COR 2b, C-LD).',
+            priority: 'emergency',
+            timing: 'Após 3º choque',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 2 e recomendações de fármacos não vasopressores; AHA/AAP 2025 Parte 8: Suporte Avançado de Vida Pediátrico (Circulation 2025;152 suppl 2:S479-S537), Figura 2',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+          {
+            id: 'pcr-6',
+            title: 'Rastreamento Sistemático das Causas Reversíveis (5H e 5T)',
+            detail:
+              'Investigar e corrigir ativamente: Hipovolemia, Hipóxia, Hidrogênio (acidose), Hipo/Hipercalemia, Hipotermia, Pneumotórax hipertensivo, Tamponamento cardíaco, Toxinas, Trombose pulmonar e Trombose coronária (em crianças, também Hipoglicemia). Situações especiais da AHA 2025: na suspeita de hipercalemia, o benefício do cálcio IV (COR 2b, C-LD) e do bicarbonato (COR 2b, C-EO) é incerto, a insulina com glicose tem utilidade incerta e o beta-agonista inalado não é recomendado, e nenhuma dessas medidas deve desviar a atenção da RCP, da desfibrilação e da epinefrina; na suspeita de overdose de opioides com parada respiratória, administrar naloxona (COR 1, B-NR); na gestação, deslocamento manual do útero para a esquerda quando o fundo uterino estiver na altura do umbigo ou acima (COR 1, C-LD), priorizar a via aérea e concluir o parto de ressuscitação em 5 minutos (COR 1, B-NR); na hipertermia grave, resfriar com queda de pelo menos 0,15 °C/min, de preferência por imersão em água gelada; na hipotermia grave, considerar reaquecimento com ECLS; em adultos e crianças com LVAD e perfusão prejudicada, priorizar as compressões torácicas (COR 1, C-LD).',
+            priority: 'emergency',
+            timing: 'Durante todo o atendimento',
+            fonte: 'AHA 2025 Parte 1: Resumo Executivo (Circulation 2025;152 suppl 2:S284-S312), pp. S296-S297 (situações especiais); AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 2',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Cuidados Pós-Parada e Retorno da Circulação Espontânea (RCE)',
+        timeWindow: 'Pós-RCE imediato',
+        items: [
+          {
+            id: 'pcr-7',
+            title: 'Metas Hemodinâmicas e Ventilatórias Pós-RCE',
+            detail:
+              'Meta de PAM ≥ 65 mmHg (valor mínimo), evitando hipotensão após o RCE; iniciar ou ajustar vasopressores e/ou volume conforme necessário (não há evidência suficiente para recomendar um vasopressor específico). Oxigenação: manter FiO2 a 100% até medir a SpO2 de forma confiável e depois ajustar gradualmente para SpO2 de 90% a 98% (PaO2 de 60 a 105 mmHg). Ventilação: PaCO2 de 35 a 45 mmHg, salvo acidemia grave. Evitar hipoglicemia (glicose < 70 mg/dL) e hiperglicemia (glicose > 180 mg/dL).',
+            priority: 'high',
+            fonte: 'AHA 2025 Parte 1: Resumo Executivo (Circulation 2025;152 suppl 2:S284-S312), p. S298; AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577) (cuidados pós-PCR, Parte 11 da AHA 2025: conferir o texto integral)',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+          {
+            id: 'pcr-8',
+            title: 'ECG de 12 derivações e CATE de Emergência',
+            detail:
+              'Realizar ECG de 12 derivações logo após o RCE (COR 1, B-NR). Considerar intervenção cardíaca de emergência (angiografia coronária e/ou suporte circulatório mecânico) se houver elevação persistente do segmento ST, choque cardiogênico, arritmias ventriculares recorrentes ou refratárias ou isquemia miocárdica grave. A angiografia coronária é recomendada antes da alta em sobreviventes adultos com suspeita de etiologia cardíaca, especialmente com ritmo inicial chocável, disfunção sistólica de VE sem explicação ou isquemia grave. TC, ecocardiografia e ultrassonografia cardíaca à beira do leito podem ser razoáveis (COR 2b) para investigar a causa da parada e as complicações da ressuscitação.',
+            priority: 'emergency',
+            fonte: 'AHA 2025 Parte 1: Resumo Executivo (Circulation 2025;152 suppl 2:S284-S312), p. S298; Figura 7 do resumo',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+          {
+            id: 'pcr-9',
+            title: 'Controle Direcionado de Temperatura (TTM)',
+            detail:
+              'Para adultos que continuam sem seguir comandos após o RCE (depois de suspender a sedação e o bloqueio neuromuscular, ou se não for possível avaliar): iniciar estratégia deliberada de controle de temperatura com meta entre 32 °C e 37,5 °C (COR 1, B-R), mantida por pelo menos 36 horas (COR 2a, B-R). Avaliar convulsões com EEG. O prognóstico deve ser multimodal e tardio (a partir de 72 horas após o RCE ou depois de atingir a normotermia). Não é recomendado tratar mioclonia sem correlato no EEG.',
+            priority: 'high',
+            fonte: 'AHA 2025 — Destaques das Diretrizes de RCP e ACE (JN-1580), pp. 18–19 (Figura 7; controle de temperatura; neuroprognóstico)',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'Todos os pacientes com retorno da circulação espontânea (RCE) pós-PCR devem ser admitidos imediatamente em UTI/CTI',
+      'Necessidade de ventilação mecânica invasiva e monitorização contínua de parâmetros hemodinâmicos e neurológicos',
+      'Uso de drogas vasoativas para estabilização hemodinâmica pós-parada',
+      'Protocolo de Controle Direcionado de Temperatura (TTM)',
+    ],
+    references: [
+      'American Heart Association (AHA): 2025 Guidelines for Cardiopulmonary Resuscitation (CPR) and Emergency Cardiovascular Care, Oct 2025.',
+      'European Resuscitation Council (ERC): 2025 Guidelines for Resuscitation, Oct 2025.',
+      'International Liaison Committee on Resuscitation (ILCOR): Consensus on Science With Treatment Recommendations (CoSTR), 2025.',
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
+    id: 'taquiarritmias',
+    title: 'Taquiarritmias no Adulto',
+    synonyms: ['Taquicardia', 'Arritmia Rápida', 'Fibrilação Atrial', 'Flutter Atrial', 'Taquicardia Supraventricular', 'TV'],
+    specialty: 'Cardiologia',
+    cid10: ['I47.1', 'I47.2', 'I48.0', 'I48.9'],
+    guidelines: [
+      { nome: 'ESC Guidelines for the Management of Atrial Fibrillation', sociedade: 'ESC', ano: 2024, status: 'VERIFICAR' },
+      { nome: 'AHA Guidelines for CPR and ECC, Parte 9: Adult Advanced Life Support (taquicardia com pulso)', sociedade: 'AHA', ano: 2025, status: 'CONFIRMADA' },
+      { nome: 'ERC Guidelines: Management of Peri-Arrest Arrhythmias', sociedade: 'ERC', ano: 2025, status: 'VERIFICAR' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'Cardioversão imediata se instabilidade; com FC acima de 150/min, preparar cardioversão e sedar sempre que possível',
+    targetTimeWarning: 'Taquicardias com instabilidade e hipotensão podem degenerar rapidamente para fibrilação ventricular ou colapso circulatório.',
+    statusBadge: 'Alta Prioridade',
+    severity: 'critical',
+    summary:
+      'Frequência cardíaca > 100 bpm (geralmente patológica se > 150 bpm). O algoritmo divide os pacientes pela presença de 5 sinais clássicos de instabilidade (hipotensão, sensório alterado, choque, dor torácica isquêmica, EAP). Pacientes instáveis requerem cardioversão elétrica imediata; pacientes estáveis são estratificados pela largura e regularidade do QRS.',
+    diagnosticCriteria: {
+      symptoms: [
+        'Palpitações súbitas, taquicardia paroxística ou sensação de batimentos irregulares',
+        'Tontura, pré-síncope ou síncope súbita',
+        'Dispneia aguda ou piora funcional súbita',
+        'Dor ou desconforto torácico em opressão',
+      ],
+      mandatoryFindings: [
+        'ECG de 12 derivações imediato (se estável) ou monitor de desfibrilador',
+        'Identificação da largura do QRS: Estreito (< 120 ms) vs Largo (≥ 120 ms)',
+        'Identificação do ritmo: Regular vs Irregular',
+        'Avaliação dos 5 sinais de instabilidade hemodinâmica',
+      ],
+      redFlags: [
+        'Hipotensão (PAS < 90 mmHg / PAM < 65 mmHg) ou choque associado',
+        'Edema agudo de pulmão desencadeado pela frequência ventricular rápida',
+        'QRS largo irregular rápido com suspeita de FA pré-excitada (Wolff-Parkinson-White) — BLOQUEADORES DO NÓ AV SÃO CONTRAINDICADOS',
+      ],
+    },
+    associatedScores: ['taqui_instabilidade'],
+    scoresPlanejados: [],
+    associatedDrugs: ['noradrenalina'],
+    conductPhases: [
+      {
+        phaseTitle: 'Estratificação Inicial de Instabilidade Hemodinâmica',
+        timeWindow: '0 - 5 minutos',
+        items: [
+          {
+            id: 'taq-1',
+            title: 'Avaliação dos 5 Sinais de Instabilidade',
+            detail:
+              'Avaliar se a frequência é adequada à condição clínica (taquiarritmia: tipicamente 150/min ou mais). Manter a via aérea pérvia, dar oxigênio se houver hipoxemia, monitorar ritmo, PA e oximetria, obter acesso IV e ECG de 12 derivações, se disponível. Taquiarritmia persistente com instabilidade (hipotensão, alteração aguda do estado mental, sinais de choque, desconforto torácico isquêmico ou insuficiência cardíaca aguda): cardioversão sincronizada, sedando sempre que possível; se for taquicardia regular de complexo estreito, considerar adenosina. A cardioversão imediata geralmente não é necessária com FC de 150/min ou menos; com FC acima de 150/min, preparar a cardioversão imediata (pode-se tentar brevemente fármacos conforme a arritmia).',
+            priority: 'emergency',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figuras 6 e 7',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+          {
+            id: 'taq-2',
+            title: 'Cardioversão Elétrica Sincronizada (Paciente Instável)',
+            detail:
+              'Ter à beira do leito monitor de saturação, aspirador, acesso IV e material de intubação. Sedar sempre que possível (a AHA cita, por exemplo, diazepam com ou sem fentanil, e muitos especialistas recomendam anestesia, se disponível; doses conforme o protocolo do serviço). Cardioversão sincronizada com desfibrilador bifásico: fibrilação atrial 200 J; flutter atrial 200 J; taquicardia de complexo estreito 100 J; TV monomórfica 100 J. TV polimórfica sustentada: choque não sincronizado de alta energia (desfibrilação). Pode ser necessário ressincronizar após cada cardioversão; se houver atraso na sincronização e o quadro for crítico, aplicar choque não sincronizado. A utilidade da cardioversão duplamente sincronizada da FA como estratégia inicial é incerta.',
+            priority: 'emergency',
+            timing: 'Imediato',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 7 (p. S568)',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Manejo Farmacológico do Paciente Estável (por Morfologia do QRS)',
+        timeWindow: '5 - 30 minutos',
+        items: [
+          {
+            id: 'taq-3',
+            title: 'QRS Estreito e Regular (TPSV / Taquicardia por Reentrada Nodal)',
+            detail:
+              'Taquicardia regular de complexo estreito, estável: manobras vagais (COR 1, B-R) e adenosina (COR 1, B-R): Adenosina 6 mg em injeção IV rápida, seguida de flush de solução salina; se necessário, Adenosina 12 mg em segunda dose. Se persistir, um bloqueador de canal de cálcio (diltiazem ou verapamil) ou um betabloqueador pode ser considerado, com consulta a especialista. Instável: cardioversão sincronizada. [Técnica da manobra de Valsalva modificada, volume do flush e doses de bloqueadores de cálcio e betabloqueadores: conferir no texto completo.]',
+            priority: 'high',
+            timing: '< 15 min',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 6 e recomendações de taquicardia de complexo estreito',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'taq-4',
+            title: 'QRS Estreito e Irregular (Fibrilação Atrial / Flutter com Condução Variável)',
+            detail:
+              'Fibrilação atrial ou flutter com resposta ventricular rápida: instabilidade ou isquemia relacionada à frequência exige cardioversão elétrica urgente (COR 1, C-LD), iniciando em 200 J. Paciente estável: controle de frequência com betabloqueador EV ou bloqueador de canal de cálcio não di-hidropiridínico (COR 1); doses conforme bula ou protocolo [não constam do texto da AHA lido]. Em disfunção sistólica do ventrículo esquerdo com insuficiência cardíaca descompensada, NÃO usar betabloqueador EV nem bloqueador de canal de cálcio não di-hidropiridínico (COR 3: dano). Em pacientes críticos, a amiodarona EV pode ser útil para o controle de frequência (COR 2a). Na FA com pré-excitação, evitar digoxina, bloqueadores de canal de cálcio, betabloqueadores e amiodarona EV (COR 3: dano), preferindo a cardioversão elétrica.',
+            priority: 'high',
+            timing: '< 30 min',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), recomendações de cardioversão e de tratamento medicamentoso da FA/flutter',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'taq-5',
+            title: 'QRS Largo e Regular (Taquicardia Ventricular Monomórfica Estável)',
+            detail:
+              'Taquicardia de complexo largo (QRS de 0,12 s ou mais) estável: pode-se considerar adenosina somente se regular e monomórfica (COR 2b). Infusão antiarrítmica: Amiodarona 150 mg EV em 10 minutos, repetindo se a TV recorrer, seguida de 1 mg/min nas primeiras 6 horas; ou procainamida 20 a 50 mg/min até suprimir a arritmia, ocorrer hipotensão, o QRS alargar mais de 50% ou atingir a dose máxima de 17 mg/kg, com manutenção de 1 a 4 mg/min (evitar se QT prolongado); sotalol também pode ser considerado (amiodarona, procainamida ou sotalol: COR 2b, B-R). NÃO usar verapamil nem diltiazem na taquicardia de complexo largo (COR 3: dano). NÃO usar adenosina na taquicardia de complexo largo instável, irregularmente irregular ou polimórfica (COR 3: dano). Se persistir após manobras vagais e fármacos, ou se estes forem contraindicados: cardioversão sincronizada (COR 1). Consultar especialista. [Manutenção da amiodarona após as primeiras 6 horas: conferir no texto completo.]',
+            priority: 'emergency',
+            timing: '< 15 min',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 6 e recomendações de taquicardia de complexo largo',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'taq-6',
+            title: 'QRS Largo Irregular / Torsades de Pointes',
+            detail:
+              'TV polimórfica sustentada: desfibrilação imediata não sincronizada (COR 1, B-NR); nenhum tratamento medicamentoso deve atrasá-la. Para a recorrência associada a QT longo (torsades de pointes), pode-se considerar sulfato de magnésio (COR 2b, C-LD); sem QT longo, lidocaína ou amiodarona e o tratamento da causa subjacente (por exemplo, isquemia) podem ser considerados (COR 2b); o magnésio de rotina com QT normal não é recomendado (COR 3: sem benefício). Corrigir eletrólitos e suspender fármacos que prolongam o QT. [Dose do magnésio: conferir no texto completo.]',
+            priority: 'emergency',
+            timing: 'Imediato',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), recomendações de TV polimórfica',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'Taquiarritmias com necessidade de cardioversão elétrica de emergência',
+      'Taquicardia ventricular sustentada (mesmo que tolerada hemodinamicamente)',
+      'Infusão contínua de antiarrítmicos intravenosos (Amiodarona, Diltiazem)',
+      'Fibrilação atrial de alta resposta ventricular com insuficiência cardíaca aguda',
+    ],
+    references: [
+      'ESC: 2024 Guidelines for the management of atrial fibrillation developed in collaboration with EACTS, Aug 2024.',
+      'AHA: 2025 American Heart Association Guidelines for Cardiopulmonary Resuscitation and Emergency Cardiovascular Care, Oct 2025.',
+      'ERC: 2025 European Resuscitation Council Guidelines for Resuscitation: Peri-arrest arrhythmias, Oct 2025.',
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
+    id: 'bradiarritmias',
+    title: 'Bradiarritmias Sintomáticas no Adulto',
+    synonyms: ['Bradicardia', 'BAV', 'Bloqueio Atrioventricular', 'Doença do Nó Sinusal', 'Bradicardia Sinusal'],
+    specialty: 'Cardiologia',
+    cid10: ['I44.0', 'I44.1', 'I44.2', 'I49.5'],
+    guidelines: [
+      { nome: 'AHA Guidelines for CPR and ECC, Parte 9: Adult Advanced Life Support (bradicardia com pulso)', sociedade: 'AHA', ano: 2025, status: 'CONFIRMADA' },
+      { nome: 'ERC Guidelines: Management of Peri-Arrest Arrhythmias - Bradycardia', sociedade: 'ERC', ano: 2025, status: 'VERIFICAR' },
+      { nome: 'ESC Guidelines on Cardiac Pacing and Cardiac Resynchronization Therapy', sociedade: 'ESC', ano: 2021, status: 'VERIFICAR' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'Atropina na bradicardia com comprometimento cardiopulmonar; preparar marca-passo se refratária',
+    targetTimeWarning: 'Bradiarritmias graves com bloqueio infranodal podem colapsar subitamente em assistolia refratária.',
+    statusBadge: 'Alta Prioridade',
+    severity: 'critical',
+    summary:
+      'Frequência cardíaca < 50 bpm associada a sintomas ou sinais de hipoperfusão sistêmica. O algoritmo preconiza avaliação imediata de estabilidade hemodinâmica, administração de atropina para bloqueios suprainodais e rápido acionamento de marca-passo transcutâneo ou infusão contínua de catecolaminas (adrenalina ou dopamina) para bloqueios avançados (BAV de 2º grau tipo II e BAV total).',
+    diagnosticCriteria: {
+      symptoms: [
+        'Frequência cardíaca lenta (< 50 bpm)',
+        'Tontura extrema, sensação de desmaio iminente ou síncope súbita (Adams-Stokes)',
+        'Dispneia, fraqueza muscular aguda e fadiga aos mínimos esforços',
+        'Confusão mental aguda por hipoperfusão cerebral',
+      ],
+      mandatoryFindings: [
+        'ECG de 12 derivações contínuo e monitorização com pás adesivas instaladas',
+        'Diferenciação do nível do bloqueio: Sinusal / BAV de 1º grau / BAV 2º grau Mobitz I (Wenckebach) vs BAV 2º grau Mobitz II / BAV de 3º grau (BAVT)',
+        'Checagem dos 5 sinais de hipoperfusão (hipotensão, sensório alterado, choque, dor torácica, IC aguda)',
+      ],
+      redFlags: [
+        'BAV de alto grau com QRS largo (bloqueio infranodal abaixo do feixe de His com ritmo de escape ventricular lento e instável)',
+        'Pausas sinusais prolongadas superiores a 3 segundos',
+        'Hipotensão persistente não responsiva à atropina',
+      ],
+    },
+    associatedScores: [],
+    scoresPlanejados: [],
+    associatedDrugs: ['dobutamina', 'noradrenalina'],
+    conductPhases: [
+      {
+        phaseTitle: 'Avaliação de Gravidade e Manejo de 1ª Linha',
+        timeWindow: '0 - 5 minutos',
+        items: [
+          {
+            id: 'bra-1',
+            title: 'Identificação de Sinais de Hipoperfusão',
+            detail:
+              'Avaliar se a frequência é adequada à condição clínica (bradiarritmia: tipicamente abaixo de 50/min). Comprometimento cardiopulmonar: hipotensão, alteração aguda do estado mental, sinais de choque, desconforto torácico isquêmico ou insuficiência cardíaca aguda. Manter a via aérea pérvia e dar oxigênio, auxiliar a respiração com pressão positiva se necessário, conectar monitor cardiorrespiratório e monitorar o pulso; obter ECG de 12 derivações. Sem comprometimento: tratar as causas de base, considerar oxigênio e observar. Identificar e tratar as causas reversíveis (COR 1): isquemia ou infarto do miocárdio, fármacos e toxinas (bloqueadores de canal de cálcio, betabloqueadores, digoxina), hipóxia e alterações eletrolíticas (por exemplo, hipercalemia).',
+            priority: 'emergency',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 8 e recomendações de bradicardia',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+          {
+            id: 'bra-2',
+            title: 'Fármaco de 1ª Escolha: Atropina EV',
+            detail:
+              'Atropina 1 mg EV em bólus; repetir a cada 3 a 5 minutos; dose total máxima de 3 mg (é razoável: COR 2a, B-NR). [A ineficácia da atropina em bloqueios infranodais é observação clínica: conferir no texto completo.]',
+            priority: 'emergency',
+            timing: 'Imediato',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 8',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Manejo de 2ª Linha: Marca-Passo e Infusões de Resgate',
+        timeWindow: '5 - 30 minutos',
+        items: [
+          {
+            id: 'bra-3',
+            title: 'Marca-Passo Transcutâneo Imediato',
+            detail:
+              'Se a atropina for ineficaz: marca-passo transcutâneo e/ou infusão de dopamina ou epinefrina; os agonistas adrenérgicos EV ou o marca-passo transcutâneo podem ser eficazes (COR 2b, C-LD). Em bloqueio AV de alto grau instável sem acesso IV/IO, o marca-passo imediato pode ser considerado (COR 2b, C-EO). [Parâmetros de captura (frequência e corrente), analgesia e sedação: seguir o protocolo do serviço; não constam do texto da AHA lido.]',
+            priority: 'emergency',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 8 e recomendações de bradicardia',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'bra-4',
+            title: 'Infusão Contínua de Adrenalina ou Dopamina',
+            detail:
+              'Infusão de dopamina: taxa usual de 5 a 20 mcg/kg/min, titulada conforme a resposta do paciente e retirada lentamente. Infusão de epinefrina: 2 a 10 mcg/min, titulada conforme a resposta do paciente.',
+            priority: 'high',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 8 (doses e detalhes)',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+          {
+            id: 'bra-5',
+            title: 'Marca-Passo Transvenoso de Urgência',
+            detail:
+              'Em bradicardia persistente, hemodinamicamente instável e refratária ao tratamento medicamentoso, é razoável considerar o marca-passo transvenoso temporário para aumentar a frequência cardíaca e melhorar os sintomas, até um tratamento definitivo (correção da causa ou marca-passo permanente). Consultar especialista.',
+            priority: 'emergency',
+            fonte: 'AHA 2025 Parte 9: Suporte Avançado de Vida em Adultos (Circulation 2025;152 suppl 2:S538-S577), Figura 8 e recomendações de bradicardia; AHA 2025 Parte 1: Resumo Executivo (Circulation 2025;152 suppl 2:S284-S312), p. S295',
+            statusRecomendacao: 'CONFIRMADA',
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'Bradiarritmias sintomáticas com necessidade de uso de atropina ou drogas vasoativas',
+      'Presença de BAV de 2º grau Mobitz II ou BAV total (BAVT)',
+      'Pacientes em uso de marca-passo transcutâneo ou transvenoso provisório',
+      'Instabilidade hemodinâmica ou síncope prévia',
+    ],
+    references: [
+      'AHA: 2025 American Heart Association Guidelines for Cardiopulmonary Resuscitation and Emergency Cardiovascular Care: Bradycardia, Oct 2025.',
+      'ERC: 2025 European Resuscitation Council Guidelines: Peri-arrest arrhythmias, Oct 2025.',
+      'ESC: Guidelines on cardiac pacing and cardiac resynchronization therapy, 2021.',
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
+    id: 'edema_agudo_pulmao',
+    title: 'Edema Agudo de Pulmão (EAP Cardiogênico)',
+    synonyms: ['EAP', 'Insuficiência Cardíaca Aguda', 'Congestão Pulmonar Aguda', 'EAP Hipertensivo'],
+    specialty: 'Cardiologia',
+    cid10: ['I50.1', 'J81'],
+    guidelines: [
+      { nome: 'ESC Guidelines for the Diagnosis and Treatment of Acute and Chronic Heart Failure', sociedade: 'ESC', ano: 2023, status: 'VERIFICAR' },
+      { nome: 'Diretriz Brasileira de Insuficiência Cardíaca Aguda', sociedade: 'SBC', ano: 2023, status: 'VERIFICAR' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'VNI e vasodilatador em < 15 min do diagnóstico',
+    targetTimeWarning: 'A postergação da Ventilação Não-Invasiva e do vasodilatador triplica a necessidade de intubação endotraqueal de urgência.',
+    statusBadge: 'Alta Prioridade',
+    severity: 'critical',
+    summary:
+      'Emergência clínica caracterizada por acúmulo súbito de transudato nos alvéolos pulmonares por elevação abrupta das pressões de enchimento ventricular esquerdo. O tratamento de escolha combina posicionamento sentado, Ventilação Não-Invasiva (VNI) precoce (CPAP/BiPAP), vasodilatadores parenterais em doses tituladas e diurético de alça intravenoso. Morfina de rotina é contraindicada pelas diretrizes atuais.',
+    diagnosticCriteria: {
+      symptoms: [
+        'Dispneia de início abrupto com ortopneia grave e incapacidade de permanecer deitado',
+        'Tosse com expectoração espumosa rosada / rósea',
+        'Sensação iminente de asfixia e sudorese fria profusa',
+        'Agitação psicomotora intensa decorrente de hipoxemia aguda',
+      ],
+      mandatoryFindings: [
+        'Estertores crepitantes pulmonares bilaterais difusos estendendo-se além do terço médio pulmonar',
+        'Hipoxemia grave (SpO2 < 90% em ar ambiente com dessaturação rápida)',
+        'Sinais de congestão sistêmica: turgência jugular patológica a 45°, refluxo hepatojugular e B3',
+        'Gasometria arterial revelando hipoxemia grave e acidose mista inicial',
+      ],
+      redFlags: [
+        'Fadiga respiratória iminente, respiração paradoxal ou rebaixamento do nível de consciência',
+        'Hipotensão arterial sistêmica associada (PAS < 90 mmHg define choque cardiogênico, onde vasodilatadores são contraindicados)',
+        'EAP desencadeado por SCA com supra de ST (requer CATE imediato)',
+      ],
+    },
+    associatedScores: [],
+    scoresPlanejados: [],
+    associatedDrugs: ['dobutamina', 'noradrenalina'],
+    conductPhases: [
+      {
+        phaseTitle: 'Medidas Imediatas e Suporte Ventilatório Precoce',
+        timeWindow: '0 - 15 minutos',
+        items: [
+          {
+            id: 'eap-1',
+            title: 'Posicionamento e Monitorização Imediata',
+            detail:
+              'Manter o paciente rigorosamente sentado com as pernas pendentes (reduz o retorno venoso pré-carga). Monitorização multiparamétrica de oximetria, ECG contínuo e pressão arterial não invasiva a cada 3 a 5 minutos.',
+            priority: 'emergency',
+            timing: '< 5 min',
+            fonte: 'ESC / SBC',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'eap-2',
+            title: 'Ventilação Não-Invasiva (VNI) Precoce — CPAP ou BiPAP (Classe I)',
+            detail:
+              'Iniciar VNI imediatamente em pacientes com desconforto respiratório (FR > 25 irpm, SpO2 < 90%). CPAP com pressão contínua de 5 a 10 cmH2O (ou BiPAP com IPAP 10-15 e EPAP 5-8 cmH2O) com FiO2 titulada para SpO2 92–96%. A VNI reduz o trabalho respiratório, melhora a complacência e diminui drasticamente as taxas de intubação orotraqueal e mortalidade (Recomendação Classe I, Nível A).',
+            priority: 'emergency',
+            timing: '< 10 min',
+            fonte: 'ESC Heart Failure Guidelines',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Terapêutica Farmacológica Hemodinâmica (conforme a Pressão Arterial)',
+        timeWindow: '10 - 60 minutos',
+        items: [
+          {
+            id: 'eap-3',
+            title: 'Vasodilatador Parenteral Precoce (se PAS ≥ 110 mmHg)',
+            detail:
+              'Pilar fundamental do EAP hipertensivo. Nitroglicerina EV titulada: iniciar a 10 a 20 mcg/min e titular a cada 3 a 5 minutos até alívio dos sintomas ou PAS atingir 110–120 mmHg. Em crises hipertensivas graves refratárias: Nitroprussiato de Sódio EV (0,3 a 3 mcg/kg/min) em bomba de infusão com proteção contra fotodegradação. Alerta de segurança: CONTRAINDICADOS se PAS < 90 mmHg ou uso recente de inibidores da PDE-5 (sildenafil em 24h, tadalafil em 48h).',
+            priority: 'emergency',
+            timing: '< 15 min',
+            fonte: 'ESC / SBC',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'eap-4',
+            title: 'Diurético de Alça: Furosemida EV',
+            detail:
+              'Furosemida 20 a 40 mg EV em bólus lento (em pacientes virgens de tratamento); ou dose equivalente a 1 a 2 vezes a dose oral diária habitual tomada em casa. Promove vasodilatação venosa precoce nos primeiros 15 minutos e diurese subsequente. Avaliar débito urinário e eletrólitos após 2 horas.',
+            priority: 'high',
+            timing: '< 20 min',
+            fonte: 'ESC Heart Failure Guidelines',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'eap-5',
+            title: 'O que NÃO Fazer: Morfina de Rotina Desaconselhada',
+            detail:
+              'As diretrizes da ESC e SBC trazem recomendação CONTRA o uso rotineiro de morfina no EAP. Ensaios clínicos demonstraram aumento significativo de necessidade de ventilação mecânica invasiva, admissão em UTI e mortalidade hospitalar em pacientes que receberam opioides rotineiramente.',
+            priority: 'routine',
+            timing: 'Aviso de Segurança',
+            fonte: 'ESC Guidelines',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'Persistência de hipoxemia grave ou necessidade de suporte ventilatório contínuo por VNI',
+      'Necessidade de infusão contínua de vasodilatadores em bomba de infusão (Nitroglicerina ou Nitroprussiato)',
+      'EAP associado a choque cardiogênico ou hipotensão (PAS < 90 mmHg)',
+      'EAP desencadeado por Síndrome Coronariana Aguda',
+    ],
+    references: [
+      'ESC: Guidelines for the diagnosis and treatment of acute and chronic heart failure, 2023.',
+      'Sociedade Brasileira de Cardiologia: Diretriz Brasileira de Insuficiência Cardíaca Aguda, 2023.',
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
+    id: 'emergencia_hipertensiva',
+    title: 'Emergência Hipertensiva vs Hipertensão Grave',
+    synonyms: ['Crise Hipertensiva', 'Hipertensão Severa', 'Encefalopatia Hipertensiva', 'Dissecção de Aorta'],
+    specialty: 'Cardiologia',
+    cid10: ['I10', 'I15.9', 'I67.4'],
+    guidelines: [
+      { nome: 'Diretriz Brasileira de Hipertensão Arterial – 2025', sociedade: 'SBC/SBN/SBH', ano: 2025, status: 'VERIFICAR' },
+      { nome: 'AHA/ACC Hypertension Guidelines: Hypertensive Crises', sociedade: 'AHA/ACC', ano: 2025, status: 'VERIFICAR' },
+      { nome: 'ESC Guidelines for the Management of Elevated Blood Pressure and Hypertension', sociedade: 'ESC', ano: 2024, status: 'VERIFICAR' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'Redução de 20-25% da PAM na 1ª hora na emergência (ou metas específicas imediatas em dissecção/AVCi)',
+    targetTimeWarning: 'Reduções pressóricas abruptas ou excessivas podem precipitar isquemia cerebral, coronariana ou renal irreversível.',
+    statusBadge: 'Alta Prioridade',
+    severity: 'critical',
+    summary:
+      'A Diretriz Brasileira de Hipertensão Arterial 2025 (SBC) estabelece a distinção obrigatória entre Emergência Hipertensiva (elevação acentuada da PA com lesão aguda de órgão-alvo em progressão, exigindo UTI e droga intravenosa titulada) e Hipertensão Grave / Crise Sem LOA (manejo exclusivamente ambulatorial com medicações orais, sem internação). Cada subtipo de emergência hipertensiva possui meta pressórica e fármaco de escolha específicos.',
+    diagnosticCriteria: {
+      symptoms: [
+        'Elevação marcante da pressão arterial (geralmente PAS > 180 mmHg e/ou PAD > 120 mmHg)',
+        'Sintomas de lesão de órgão-alvo (LOA): cefaleia intensa com vômitos, escotomas, confusão, déficits focais, dor torácica lancinante, dispneia súbita',
+        'Presença de proteinúria/hematúria com oligúria aguda',
+      ],
+      mandatoryFindings: [
+        'Avaliação sistemática dos órgãos-alvo: cérebro (exame neurológico), coração (ECG e troponina), aorta (angio-TC se dor típica), rins (creatinina/ureia/EAS) e fundo de olho (retinopatia com hemorragias/papiledema)',
+        'Estratificação pelo escore de LOA Aguda',
+        'Determinação da etiologia específica para definição da meta pressórica correta',
+      ],
+      redFlags: [
+        'Dissecção aguda de aorta: dor dorsal lancinante associada a assimetria pressórica nos braços > 20 mmHg',
+        'Uso inadvertido de nifedipino sublingual de ação curta (formalmente proscrito pelo alto risco de hipotensão severa e AVCi)',
+        'Tentativa de normalização rápida da PA em AVC isquêmico agudo (risco de estender o infarto cerebral na área de penumbra isquêmica)',
+      ],
+    },
+    associatedScores: ['emergencia_hipertensiva_loa'],
+    scoresPlanejados: [],
+    associatedDrugs: ['noradrenalina'],
+    conductPhases: [
+      {
+        phaseTitle: 'Diferenciação Obrigatória (SBC 2025): LOA Presente vs Ausente',
+        timeWindow: '0 - 15 minutos',
+        items: [
+          {
+            id: 'hip-1',
+            title: 'Triagem Mandatória de Lesão Aguda de Órgão-Alvo (DBHA 2025)',
+            detail:
+              'Se LOA Aguda AUSENTE -> Hipertensão Grave (antiga Urgência Hipertensiva): NÃO admitir em UTI, NÃO prescrever drogas parenterais. Conduta: repouso em sala tranquila, anti-hipertensivo oral habitual ou captopril/clonidina oral, observação e alta com retorno ambulatorial em 24 a 72h. Se LOA Aguda PRESENTE -> Emergência Hipertensiva: internação imediata em UTI e tratamento parenteral.',
+            priority: 'emergency',
+            timing: '< 15 min',
+            fonte: 'Diretriz SBC 2025',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Metas e Condutas Específicas por Cenário Clínico',
+        timeWindow: 'Primeiras 2 a 24 horas',
+        items: [
+          {
+            id: 'hip-2',
+            title: 'Dissecção Aguda de Aorta (Emergência Extrema)',
+            detail:
+              'Meta pressórica e cronotrópica em 20 minutos: Reduzir PAS < 120 mmHg E Frequência Cardíaca < 60 bpm. Conduta: INICIAR BETABLOQUEADOR PRIMEIRO (Esmolol em BIC ou Labetalol EV) para diminuir a dP/dt e o estresse de cisalhamento da parede da aorta, e somente DEPOIS associar Nitroprussiato de Sódio se a PAS permanecer > 120 mmHg. Vasodilatador puro isolado é contraindicado pelo risco de taquicardia reflexa.',
+            priority: 'emergency',
+            timing: '< 20 min',
+            fonte: 'DBHA 2025 / AHA 2025',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'hip-3',
+            title: 'Acidente Vascular Cerebral Isquêmico (AVCi) Agudo',
+            detail:
+              'Se candidato a trombólise endovenosa: PA deve ser mantida < 185/110 mmHg antes da alteplase/tenecteplase e < 180/105 mmHg nas primeiras 24 horas (usar Labetalol ou Nicardipina). Se NÃO candidato a trombólise: NÃO tratar a hipertensão arterial a não ser que PAS > 220 mmHg ou PAD > 120 mmHg; se ultrapassar esse limite, reduzir no máximo 15% da PA nas primeiras 24 horas para preservar a perfusão da penumbra isquêmica.',
+            priority: 'emergency',
+            timing: '< 1 hora',
+            fonte: 'DBHA 2025 / AHA Stroke Guidelines',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'hip-4',
+            title: 'Encefalopatia Hipertensiva e Emergências Gerais',
+            detail:
+              'Redução gradual da Pressão Arterial Média (PAM) em 20% a 25% na primeira hora com Nitroprussiato de Sódio titulado (0,3 a 2 mcg/kg/min). Nas 2 a 6 horas seguintes, atingir meta de ~160/100 mmHg se bem tolerado. Manter monitorização invasiva por linha arterial e vigiar toxicidade por tiocianato se infusão > 48h ou disfunção renal.',
+            priority: 'high',
+            timing: '1 - 6 horas',
+            fonte: 'DBHA 2025 / SBC',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'hip-5',
+            title: 'Crise Hipertensiva Gestacional: Pré-Eclâmpsia Grave e Eclâmpsia',
+            detail:
+              'Prevenção/Tratamento de convulsões: Sulfato de Magnésio (Esquema Pritchard ou Zuspan: ataque de 4 g EV em 20 min, seguido de manutenção de 1 a 2 g/h em bomba contínua). Controle pressórico de emergência: Hidralazina 5 mg EV em bólus (repetir a cada 20 min se necessário, máx 20 mg) ou Labetalol EV. Alvo: manter PAS entre 140–150 mmHg e PAD entre 90–100 mmHg (evitar hipoperfusão uteroplacentária).',
+            priority: 'emergency',
+            timing: '< 30 min',
+            fonte: 'DBHA 2025 / FEBRASGO',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'Todas as emergências hipertensivas comprovadas por lesão aguda de órgão-alvo',
+      'Necessidade de infusão contínua de vasodilatadores parenterais titulados (Nitroprussiato, Nitroglicerina, Labetalol)',
+      'Dissecção aguda de aorta, AVCi com trombólise ou EAP hipertensivo',
+      'Necessidade de monitorização invasiva contínua da pressão arterial (linha arterial)',
+    ],
+    references: [
+      'Sociedade Brasileira de Cardiologia (SBC): Diretriz Brasileira de Hipertensão Arterial – 2025, Arq Bras Cardiol 2025.',
+      'AHA/ACC: 2025 Hypertension Guidelines for the Management of High Blood Pressure and Hypertensive Emergencies.',
+      'ESC: 2024 Guidelines for the management of elevated blood pressure and hypertension.',
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  // FASE 4: INFECÇÕES (HAP/VAP E PIELONEFRITE)
+  // ---------------------------------------------------------------------------
+  {
+    id: 'hap_vap',
+    title: 'Pneumonia Hospitalar e Associada à Ventilação Mecânica (HAP/VAP)',
+    synonyms: ['HAP', 'VAP', 'PAVM', 'Pneumonia Nosocomial', 'Pneumonia Hospitalar'],
+    specialty: 'Pneumologia',
+    cid10: ['J15.9', 'J18.9', 'Y95'],
+    guidelines: [
+      { nome: 'ATS/IDSA Guidelines for the Management of Adults with HAP and VAP', sociedade: 'ATS/IDSA', ano: 2016, status: 'VERIFICAR' },
+      { nome: 'Surviving Sepsis Campaign: Adult Guidelines', sociedade: 'SCCM/ESICM', ano: 2026, status: 'CONFIRMADA' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'Antimicrobiano em < 1h se choque séptico; culturas respiratórias antes do início',
+    targetTimeWarning: 'O atraso no início do esquema antimicrobiano adequado contra bacilos gram-negativos resistentes eleva a mortalidade em pacientes ventilados.',
+    statusBadge: 'Alta Prioridade',
+    severity: 'critical',
+    summary:
+      'Pneumonia adquirida após > 48 horas de internação hospitalar (HAP) ou após > 48 horas de intubação endotraqueal (VAP). As diretrizes conjuntas ATS/IDSA enfatizam a estratificação de risco para patógenos multirresistentes (MDR) e MRSA, a coleta prévia mandatória de aspirado traqueal ou lavado broncoalveolar, a seleção empírica baseada no microbioma local e a duração curta de 7 dias de tratamento na maioria dos pacientes com boa resposta clínica.',
+    diagnosticCriteria: {
+      symptoms: [
+        'Novo infiltrado pulmonar persistente ou progressivo em radiografia ou tomografia de tórax após 48h de admissão/intubação',
+        'Febre (> 38°C) ou hipotermia inexplicada (< 36°C)',
+        'Secreção traqueobrônquica purulenta ou aumento expressivo do volume das secreções',
+        'Piora nas trocas gasosas com queda da relação PaO2/FiO2 e aumento da demanda ventilatória (PEEP ou FiO2)',
+      ],
+      mandatoryFindings: [
+        'Coleta de espécime do trato respiratório inferior (Aspirado traqueal quantitativo ≥ 10^6 UFC/mL ou Lavado Broncoalveolar ≥ 10^4 UFC/mL) ANTES de introduzir ou trocar antibiótico',
+        'Hemoculturas (dois pares de sítios venosos distintos)',
+        'Avaliação de risco de sepse / choque séptico (NEWS2 ou SOFA)',
+        'Painel laboratorial com leucograma, procalcitonina e creatinina sérica para ajuste posológico',
+      ],
+      redFlags: [
+        'Choque séptico rapidamente progressivo exigindo vasopressores em doses crescentes',
+        'Hipoxemia refratária com necessidade de manobra de prona ou bloqueio neuromuscular',
+        'Falha terapêutica em 48 a 72 horas com persistência de febre e leucocitose (investigar empiema parapneumônico ou patógeno resistente não coberto)',
+      ],
+    },
+    associatedScores: ['hap_vap_mdr_risk', 'news2'],
+    scoresPlanejados: [],
+    associatedDrugs: ['noradrenalina'],
+    conductPhases: [
+      {
+        phaseTitle: 'Diagnóstico Microbiológico e Triagem de Sepse',
+        timeWindow: '0 - 1 hora',
+        items: [
+          {
+            id: 'hap-1',
+            title: 'Coleta de Culturas Respiratórias e Hemoculturas',
+            detail:
+              'Realizar coleta de aspirado traqueal quantitativo (ou lavado broncoalveolar) e dois pares de hemoculturas imediatamente. NUNCA retardar antibiótico no choque séptico se a coleta demorar mais de 45 minutos.',
+            priority: 'emergency',
+            timing: '< 1 hora',
+            fonte: 'ATS/IDSA / SSC 2026',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'hap-2',
+            title: 'Triagem de Risco para Multirresistência (MDR / MRSA)',
+            detail:
+              'Avaliar escore de risco MDR: uso prévio de antibiótico EV em 90 dias, choque séptico atual, internação ≥ 5 dias ou prevalência de MRSA > 20%. Se ausência de risco: monoterapia antipseudomonas; se risco presente: terapia combinada antipseudomonas + cobertura anti-MRSA.',
+            priority: 'emergency',
+            timing: '< 1 hora',
+            fonte: 'ATS/IDSA',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Esquema Antimicrobiano Empírico Estratificado',
+        timeWindow: '1 - 24 horas',
+        items: [
+          {
+            id: 'hap-3',
+            title: 'Betalactâmico Antipseudomonas (Espinha Dorsal do Tratamento)',
+            detail:
+              'Opções com dose e ajuste por TFG: Piperacilina-Tazobactam 4,5 g EV a cada 6 horas (preferir infusão estendida de 3 a 4 horas para otimizar tempo acima da MIC); OU Cefepime 2 g EV a cada 8 horas (infusão estendida); OU Meropenem 1 g EV a cada 8 horas (se histórico de patógeno produtor de ESBL ou sepse grave).',
+            priority: 'emergency',
+            timing: '< 1 hora',
+            fonte: 'ATS/IDSA / SSC 2026',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'hap-4',
+            title: 'Segundo Agente Antipseudomonas (se Alto Risco de MDR ou Choque)',
+            detail:
+              'Associar agente de classe não-betalactâmica: Amicacina 15 a 20 mg/kg EV em dose única diária (com monitorização renal estrita); OU Ciprofloxacino 400 mg EV a cada 8 horas; OU Levofloxacino 750 mg EV a cada 24 horas.',
+            priority: 'high',
+            timing: '< 2 horas',
+            fonte: 'ATS/IDSA',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'hap-5',
+            title: 'Cobertura Anti-MRSA (se Fatores de Risco ou Prevalência > 20%)',
+            detail:
+              'Vancomicina com dose de ataque ponderal de 20 a 35 mg/kg EV (máximo 2.000 a 3.000 mg em infusão lenta de 2 horas) com monitorização guiada por AUC24/MIC alvo de 400–600 mg·h/L (Consenso ASHP/IDSA 2020); OU Linezolida 600 mg EV a cada 12 horas (preferível se lesão renal aguda associada ou risco elevado de nefrotoxicidade).',
+            priority: 'high',
+            timing: '< 2 horas',
+            fonte: 'ASHP/IDSA 2020 / ATS 2016',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Descalonamento Terapêutico e Duração do Tratamento',
+        timeWindow: '48 horas - 7 dias',
+        items: [
+          {
+            id: 'hap-6',
+            title: 'Descalonamento Guiado por Antibiograma e Duração de 7 Dias',
+            detail:
+              'Com os resultados das culturas quantitativas em 48 a 72 horas: suspender o 2º agente antipseudomonas e suspender a vancomicina/linezolida se MRSA negativo. Diretriz forte da ATS/IDSA: a duração padrão recomendada para HAP/VAP é de apenas 7 dias em pacientes que apresentam melhora clínica e estabilização de parâmetros hemodinâmicos e ventilatórios.',
+            priority: 'routine',
+            timing: '48h - 7 dias',
+            fonte: 'ATS/IDSA',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'Todos os pacientes com pneumonia associada à ventilação mecânica (VAP) já se encontram em ambiente de UTI',
+      'Pacientes com HAP desenvolvendo insuficiência respiratória aguda hipoxêmica ou necessidade de intubação',
+      'Sinais de sepse grave, choque séptico ou disfunção orgânica aguda (NEWS2 ≥ 7 ou SOFA crescente)',
+    ],
+    references: [
+      'Kalil AC, et al. Management of Adults With Hospital-acquired and Ventilator-associated Pneumonia: 2016 Clinical Practice Guidelines by the Infectious Diseases Society of America and the American Thoracic Society. Clin Infect Dis 2016.',
+      'Rybak MJ, et al. Therapeutic monitoring of vancomycin for serious methicillin-resistant Staphylococcus aureus infections: A revised consensus guideline and review. Am J Health-Syst Pharm 2020.',
+      'Surviving Sepsis Campaign: International Guidelines for Management of Sepsis and Septic Shock, 2026.',
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
+    id: 'pielonefrite_aguda',
+    title: 'Pielonefrite Aguda e Urosepse',
+    synonyms: ['Pielonefrite', 'ITU Alta', 'Infecção Renal Aguda', 'ITU Sistêmica', 'Urosepse'],
+    specialty: 'Emergência Clínica',
+    cid10: ['N10', 'N39.0', 'A41.9'],
+    guidelines: [
+      { nome: 'EAU Guidelines on Urological Infections: Pyelonephritis and Urosepsis', sociedade: 'EAU', ano: 2026, status: 'VERIFICAR' },
+      { nome: 'IDSA Guidelines for the Treatment of Acute Uncomplicated Cystitis and Pyelonephritis', sociedade: 'IDSA', ano: 2011, status: 'VERIFICAR' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'Antibiótico em < 1h se choque; Imagem imediata e descompressão de urgência se litíase obstrutiva',
+    targetTimeWarning: 'A pielonefrite com obstrução litiásica evolui para choque séptico fulminante e óbito se não houver descompressão urológica imediata.',
+    statusBadge: 'Alta Prioridade',
+    severity: 'critical',
+    summary:
+      'Infecção bacteriana aguda do parênquima renal e sistema coletor. A Diretriz da Associação Europeia de Urologia (EAU 2026) classifica a pielonefrite como ITU sistêmica, enfatizando a diferenciação entre casos não complicados (passíveis de manejo ambulatorial) e complicados/obstrutivos. A presença de cálculo ureteral obstrutivo associado à infecção constitui emergência urológica absoluta que exige descompressão de urgência.',
+    diagnosticCriteria: {
+      symptoms: [
+        'Febre alta (> 38°C), calafrios e tremores intensos',
+        'Dor em flanco uni ou bilateral, dor lombar e punho-percussão dolorosa (sinal de Giordano positivo)',
+        'Sintomas urinários baixos associados (disúria, polaciúria, urgência miccional)',
+        'Náuseas, vômitos e intolerância alimentar frequentes',
+      ],
+      mandatoryFindings: [
+        'Sumário de urina (EAS/tipo 1) revelando piúria intensa, bacteriúria e leucocitúria',
+        'Urocultura com antibiograma coletada antes de iniciar antimicrobiano',
+        'Hemoculturas (dois pares) em todos os pacientes que necessitam de internação hospitalar',
+        'Exame de imagem (USG renal ou TC de abdome sem contraste) mandatória se sepse, suspeita de litíase ou ausência de melhora após 48h',
+      ],
+      redFlags: [
+        'Pielonefrite Obstrutiva: hidronefrose ou cálculo ureteral concomitante (EMERGÊNCIA UROLÓGICA ABSOLUTA)',
+        'Sinais de choque séptico: hipotensão (PAS < 90 ou PAM < 65 mmHg) e oligúria',
+        'Pielonefrite enfisematosa em pacientes diabéticos (gás no parênquima renal visualizado na TC)',
+      ],
+    },
+    associatedScores: ['pielonefrite_gravidade', 'news2'],
+    scoresPlanejados: [],
+    associatedDrugs: ['noradrenalina'],
+    conductPhases: [
+      {
+        phaseTitle: 'Estratificação de Gravidade e Descarte de Obstrução',
+        timeWindow: '0 - 1 hora',
+        items: [
+          {
+            id: 'pielo-1',
+            title: 'Triagem de Risco e Investigação de Obstrução Litiásica',
+            detail:
+              'Avaliar escore de gravidade de pielonefrite. Se suspeita de cálculo, dor em cólica prévia, rim único ou choque séptico: realizar Ultrassonografia de rins e vias urinárias de urgência ou Tomografia Computadorizada sem contraste.',
+            priority: 'emergency',
+            timing: '< 1 hora',
+            fonte: 'EAU 2026',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'pielo-2',
+            title: 'Pielonefrite Obstrutiva: Descompressão Urológica de Emergência',
+            detail:
+              'ALERTA CRÍTICO DE VIDA: Se confirmada hidronefrose por cálculo ou estenose em paciente febril com infecção: ACIONAR UROLOGISTA IMEDIATAMENTE para descompressão mecânica de emergência via cateter duplo J retrógrado ou nefrostomia percutânea. Antibióticos isolados não penetram no sistema coletor ocluído e não controlam o choque séptico sem drenagem.',
+            priority: 'emergency',
+            timing: 'Imediato (< 2h)',
+            fonte: 'EAU 2026',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Antibioticoterapia Empírica e Ressuscitação Volêmica',
+        timeWindow: '1 - 24 horas',
+        items: [
+          {
+            id: 'pielo-3',
+            title: 'Ressuscitação Volêmica Parenteral',
+            detail:
+              'A pielonefrite sistêmica cursa com desidratação expressiva por vômitos, febre e vasodilatação inflamatória. Iniciar expansão com cristaloide balanceado (Ringer Lactato ou SF 0,9%) com alíquotas de 500 a 1.000 mL guiadas por perfusão e débito urinário.',
+            priority: 'emergency',
+            timing: '< 1 hora',
+            fonte: 'SSC 2026 / EAU',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'pielo-4',
+            title: 'Antimicrobiano Parenteral para Pacientes Internados',
+            detail:
+              '1ª linha hospitalar: Ceftriaxona 1 a 2 g EV a cada 24 horas; OU se histórico de colonização/infecção por enterobactéria produtora de ESBL: Ertapenem 1 g EV a cada 24 horas; OU em urosepse grave/choque séptico: Piperacilina-Tazobactam 4,5 g EV a cada 8 horas (ou Meropenem 1 g EV 8/8h). Se resistência local a quinolonas < 10%: Ciprofloxacino 400 mg EV 12/12h.',
+            priority: 'emergency',
+            timing: '< 1 hora',
+            fonte: 'EAU 2026',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'pielo-5',
+            title: 'Regime Oral para Casos Leves Sem Alarme (Ambulatorial)',
+            detail:
+              'Apenas para pacientes jovens, não gestantes, tolerando via oral e com suporte domiciliar: Ciprofloxacino 500 mg VO a cada 12 horas por 7 dias (se taxa local de resistência < 10%); ou dose inicial parenteral de Ceftriaxona 1 g EV/IM seguida de cefalosporina oral ou sulfametoxazol-trimetoprima conforme antibiograma por 10 a 14 dias.',
+            priority: 'routine',
+            timing: 'Ambulatorial',
+            fonte: 'EAU 2026 / IDSA',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Reavaliação em 48 a 72 Horas e Ajuste Terapêutico',
+        timeWindow: '48 - 72 horas',
+        items: [
+          {
+            id: 'pielo-6',
+            title: 'Reavaliação da Febre e Antibiograma da Urocultura',
+            detail:
+              'A febre da pielonefrite tipicamente cede em até 48 a 72 horas do início do antibiótico eficaz. Se persistência de picos febris após 72h: solicitar Tomografia com contraste para descartar abscesso renal, abscesso perinéfrico ou necrose de papila. Ajustar o antibiótico para o espectro mais estreito conforme o resultado da urocultura.',
+            priority: 'high',
+            timing: '48 - 72 horas',
+            fonte: 'EAU 2026',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'Pielonefrite associada a choque séptico (necessidade de vasopressores)',
+      'Insuficiência renal aguda com oligúria acentuada ou hipercalemia',
+      'Pielonefrite obstrutiva com instabilidade hemodinâmica pós-descompressão',
+      'Pielonefrite enfisematosa com disfunção de múltiplos órgãos',
+    ],
+    references: [
+      'European Association of Urology (EAU): Guidelines on Urological Infections, 2026 Edition.',
+      'Gupta K, et al. International Clinical Practice Guidelines for the Treatment of Acute Uncomplicated Cystitis and Pyelonephritis in Women: A 2010 Update by the IDSA and ESCMID. Clin Infect Dis 2011.',
+      'Surviving Sepsis Campaign: International Guidelines for Management of Sepsis and Septic Shock, 2026.',
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  // FASE 5: METABÓLICO (CAD/EHH E DISTÚRBIOS ÁCIDO-BASE / HIDROELETROLÍTICOS)
+  // ---------------------------------------------------------------------------
+  {
+    id: 'emergencias_hiperglicemicas_cad_ehh',
+    title: 'Emergências Hiperglicêmicas (CAD e EHH)',
+    synonyms: ['CAD', 'EHH', 'Cetoacidose Diabética', 'Estado Hiperosmolar', 'Crise Hiperglicêmica'],
+    specialty: 'Emergência Clínica',
+    cid10: ['E10.1', 'E11.0', 'E11.1', 'E14.0'],
+    guidelines: [
+      { nome: 'Consensus Statement on Hyperglycemic Crises in Adults With Diabetes', sociedade: 'ADA/EASD', ano: 2024, status: 'VERIFICAR' },
+      { nome: 'Standards of Care in Diabetes: Glycemic Emergencies', sociedade: 'ADA', ano: 2026, status: 'VERIFICAR' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'Ressuscitação volêmica imediata; Checar K+ antes de iniciar insulina',
+    targetTimeWarning: 'NUNCA iniciar insulina se o potássio sérico for inferior a 3,5 mEq/L (risco iminente de arritmia letal por hipocalemia grave induzida pela insulina).',
+    statusBadge: 'Alta Prioridade',
+    severity: 'critical',
+    summary:
+      'Emergências metabólicas agudas decorrentes de deficiência absoluta ou relativa de insulina com elevação de hormônios contrarreguladores. A diretriz de consenso ADA/EASD 2024 unifica a abordagem de Cetoacidose Diabética (CAD) e Estado Hiperosmolar Hiperglicêmico (EHH), priorizando a dosagem direta de beta-hidroxibutirato, o uso de gasometria venosa (evitando punção arterial desnecessária), ressuscitação volêmica precoce, monitorização do potássio sérico antes da insulina e critérios padronizados de resolução clínica.',
+    diagnosticCriteria: {
+      symptoms: [
+        'Poliúria acentuada, polidipsia e perda ponderal aguda',
+        'Náuseas, vômitos incoercíveis e dor abdominal difusa (simulando abdome agudo na CAD)',
+        'Hálito cetônico característico e respiração de Kussmaul (hiperpneia profunda e rápida)',
+        'Sinais de desidratação grave: turgor pastoso, mucosas secas, hipotensão postural e taquicardia',
+        'Alteração do estado mental: desde sonolência e confusão até torpor e coma profundo (especialmente no EHH)',
+      ],
+      mandatoryFindings: [
+        'Glicemia sérica (frequentemente > 200–250 mg/dL na CAD; > 600 mg/dL no EHH)',
+        'Gasometria venosa: pH venoso e bicarbonato sérico (HCO3-)',
+        'Beta-hidroxibutirato sérico quantitativo (≥ 3,0 mmol/L confirma cetoacidose; padrão-ouro ADA 2024)',
+        'Eletrólitos com cálculo obrigatório do Ânion Gap sérico e da Osmolalidade sérica efetiva',
+        'Sódio corrigido pela glicemia: Na_corrigido = Na_medido + 0,016 × (Glicemia - 100)',
+      ],
+      redFlags: [
+        'Potássio sérico < 3,5 mEq/L: CONTRAINDICAÇÃO TEMPORÁRIA DE INSULINA (repor potássio primeiro)',
+        'Queda da glicemia > 75–100 mg/dL por hora (risco de edema cerebral por queda osmótica abrupta)',
+        'Acidose metabólica persistente com ânion gap normal após melhora da CAD (acidose hiperclorêmica por excesso de NaCl 0,9% — conduta autolimitada que não requer prorrogação de insulina EV)',
+      ],
+    },
+    associatedScores: ['cad_gravidade', 'ehh_criterios'],
+    scoresPlanejados: [],
+    associatedDrugs: ['noradrenalina'],
+    conductPhases: [
+      {
+        phaseTitle: 'Ressuscitação Volêmica e Checagem do Potássio',
+        timeWindow: '0 - 1 hora',
+        items: [
+          {
+            id: 'cad-1',
+            title: 'Expansão Volêmica Imediata',
+            detail:
+              'Iniciar imediatamente infusão de cristaloide (Ringer Lactato ou SF 0,9%) a 1.000 mL/h na primeira hora em adultos (10 a 20 mL/kg). Avaliar estado hemodinâmico: se choque cardiogênico ou sobrecarga, titular com cautela; se desidratação grave sem choque, manter 250 a 500 mL/h nas 2 a 4 horas seguintes guiado pelo sódio corrigido.',
+            priority: 'emergency',
+            timing: '< 1 hora',
+            fonte: 'ADA/EASD 2024',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'cad-2',
+            title: 'Regra de Ouro do Potássio (K+) antes da Insulina',
+            detail:
+              'SE K+ < 3,5 mEq/L: NÃO INICIAR INSULINA! Administrar KCl 20 a 40 mEq/h em solução de infusão até que o potássio sérico ultrapasse 3,5 mEq/L. SE K+ entre 3,5 e 5,5 mEq/L: adicionar 20 a 30 mEq de KCl por litro de fluido para manter o K+ entre 4,0 e 5,0 mEq/L durante a infusão de insulina. SE K+ > 5,5 mEq/L: não adicionar potássio e iniciar insulina imediatamente, checando K+ a cada 2 horas.',
+            priority: 'emergency',
+            timing: '< 1 hora',
+            fonte: 'ADA/EASD 2024',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Insulinoterapia Contínua e Proteção contra Hipoglicemia',
+        timeWindow: '1 - 24 horas',
+        items: [
+          {
+            id: 'cad-3',
+            title: 'Infusão Contínua de Insulina Regular',
+            detail:
+              'Após garantir K+ ≥ 3,5 mEq/L: iniciar Insulina Regular EV contínua em bomba de infusão a 0,1 U/kg/h (ou 0,14 U/kg/h sem bólus inicial prévio). Diluição padrão: 100 UI de Insulina Regular em 100 mL de SF 0,9% (concentração 1 UI/mL). Meta de redução glicêmica: 50 a 75 mg/dL por hora. Se a glicemia não cair pelo menos 50 mg/dL na 1ª hora, checar hidratação e aumentar a taxa de insulina em 50% a 100%.',
+            priority: 'emergency',
+            timing: '< 2 horas',
+            fonte: 'ADA/EASD 2024',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'cad-4',
+            title: 'Adição de Glicose ao Esquema (Prevenção de Hipoglicemia e Edema Cerebral)',
+            detail:
+              'Quando a glicemia atingir 200 mg/dL na CAD (ou 250–300 mg/dL no EHH): ADICIONAR Solução Glicosada a 5% ou 10% aos fluidos de manutenção (ex.: SG 5% com NaCl 0,45%) e reduzir a taxa de insulina para 0,02 a 0,05 U/kg/h. NUNCA suspender a insulina enquanto os critérios de resolução da CAD não forem atingidos, pois a insulina é necessária para cessar a cetogênese.',
+            priority: 'high',
+            timing: 'Quando glicemia ~200 mg/dL',
+            fonte: 'ADA/EASD 2024',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Critérios de Resolução e Transição para Insulina Subcutânea',
+        timeWindow: 'Resolução da crise',
+        items: [
+          {
+            id: 'cad-5',
+            title: 'Critérios Formais de Resolução (ADA/EASD 2024)',
+            detail:
+              'Resolução da CAD: Glicemia < 200 mg/dL E presença de pelo menos dois dos seguintes critérios: 1) Bicarbonato sérico ≥ 18 mEq/L; 2) pH venoso > 7,30; 3) Ânion gap normalizado (≤ 12 mEq/L); ou beta-hidroxibutirato sérico < 0,6 mmol/L. Resolução do EHH: Osmolalidade efetiva < 300 mOsm/kg, glicemia < 250 mg/dL, débito urinário adequado e retorno do nível de consciência basal.',
+            priority: 'routine',
+            timing: 'Avaliação horária/seriada',
+            fonte: 'ADA/EASD 2024',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'cad-6',
+            title: 'Transição Segura para Insulina Subcutânea (Overlap)',
+            detail:
+              'Aplicar a primeira dose de insulina basal subcutânea (Glargina, Degludeca ou NPH) 2 a 4 horas ANTES de desligar a bomba de infusão de insulina intravenosa. Desligar a bomba sem sobreposição prévia de insulina basal causa cetoacidose rebote em 30 a 60 minutos.',
+            priority: 'emergency',
+            timing: 'No momento da transição',
+            fonte: 'ADA/EASD 2024',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'Cetoacidose diabética grave (pH < 7,00, bicarbonato < 10 mEq/L ou coma)',
+      'Estado hiperosmolar hiperglicêmico com osmolalidade > 320 mOsm/kg e rebaixamento do sensório',
+      'Instabilidade hemodinâmica, choque ou disfunção renal aguda anúrica associada',
+      'Hipocalemia severa refratária com necessidade de infusão venosa central concentrada de potássio',
+    ],
+    references: [
+      'Davies MJ, et al. Management of Hyperglycemic Crises in Adults With Diabetes: A Consensus Report by the American Diabetes Association (ADA) and European Association for the Study of Diabetes (EASD). Diabetes Care 2024.',
+      'American Diabetes Association: Standards of Care in Diabetes — 2026.',
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
+    id: 'disturbios_eletroliticos_acidobase',
+    title: 'Distúrbios Eletrolíticos e Ácido-Base (Hipercalemia, Hiponatremia e Gasometria)',
+    synonyms: ['Distúrbio Eletrolítico', 'Hipercalemia', 'Hiponatremia', 'Distúrbio Ácido-Base', 'Gasometria'],
+    specialty: 'Emergência Clínica',
+    cid10: ['E87.0', 'E87.1', 'E87.2', 'E87.5'],
+    guidelines: [
+      { nome: 'Clinical Practice Guideline: Management of Hyperkalaemia in Adults', sociedade: 'UK Kidney Association', ano: 2023, status: 'VERIFICAR' },
+      { nome: 'Clinical Practice Guideline on Diagnosis and Treatment of Hyponatraemia', sociedade: 'ESE/ESICM/ERA', ano: 2014, status: 'VERIFICAR' },
+    ],
+    revisadoEm: REVISADO_EM,
+    validacaoClinica: 'PENDENTE',
+    targetTime: 'Gluconato de cálcio em < 5 min na hipercalemia grave; Bólus de NaCl 3% se hiponatremia convulsiva',
+    targetTimeWarning: 'Correção de sódio > 10 mEq/L em 24 horas pode causar Síndrome de Desmielinização Osmótica irreversível e tetraplegia.',
+    statusBadge: 'Alta Prioridade',
+    severity: 'critical',
+    summary:
+      'Manejo de emergência dos principais desequilíbrios iônicos e do equilíbrio ácido-base. Na Hipercalemia grave (K+ ≥ 6,5 ou alterações no ECG), o pilar imediato é a estabilização de membrana com gluconato de cálcio, seguido por shift intracelular (insulina + glicose) e eliminação. Na Hiponatremia sintomática grave, preconiza-se salina hipertônica (NaCl a 3%) em bólus com teto estrito de segurança diário para prevenir mielinólise pontina central.',
+    diagnosticCriteria: {
+      symptoms: [
+        'Hipercalemia: fraqueza muscular ascendente flácida, parestesias, palpitações e bradiarritmias graves',
+        'Hiponatremia: cefaleia intensa, náuseas, vômitos, desorientação, marcha atáxica, convulsões e coma',
+        'Distúrbios Ácido-Base: hiperpneia de Kussmaul (acidose metabólica) ou respiração superficial hipoventilatória (alcalose metabólica)',
+      ],
+      mandatoryFindings: [
+        'ECG de 12 derivações imediato na suspeita de hipercalemia (pesquisar T apiculada, PR alargado, achatamento de P e alargamento de QRS)',
+        'Gasometria venosa ou arterial com cálculo de Ânion Gap sérico e compensação respiratória esperada (fórmula de Winter: pCO2 = 1,5 × [HCO3-] + 8 ± 2)',
+        'Eletrólitos séricos (Na+, K+, Cl-, Ca++, Mg++, P) e glicemia para cálculo do sódio corrigido e osmolalidade efetiva',
+      ],
+      redFlags: [
+        'Hipercalemia com perda de onda P ou alargamento do QRS: ritmo sinoventricular com parada cardíaca iminente',
+        'Hiponatremia crônica corrigida a uma velocidade > 10 mEq/L nas primeiras 24 horas (alto risco de desmielinização osmótica)',
+        'Uso de bicarbonato de sódio em acidose lática sem ventilação adequada (gera CO2 tecidual e agrava acidose intracelular paradoxal)',
+      ],
+    },
+    associatedScores: ['hipercalemia_severidade', 'hiponatremia_sintomas'],
+    scoresPlanejados: [],
+    associatedDrugs: ['noradrenalina'],
+    conductPhases: [
+      {
+        phaseTitle: 'Manejo Imediato da Emergência Hipercalêmica (K+ ≥ 6,5 ou ECG alterado)',
+        timeWindow: '0 - 30 minutos',
+        items: [
+          {
+            id: 'eletro-1',
+            title: '1º Passo: Estabilização de Membrana Miocárdica (Gluconato de Cálcio)',
+            detail:
+              'Gluconato de Cálcio a 10%: administrar 30 mL (3 ampolas) EV em 5 a 10 minutos (ou Cloreto de Cálcio 10% 10 mL se acesso central ou parada cardíaca). Início de ação em 1 a 3 minutos; duração de 30 a 60 minutos. Não reduz o potássio sérico; previne arritmias fatais e fibrilação ventricular. Repetir em 5 a 10 minutos se o traçado do ECG persistir alterado.',
+            priority: 'emergency',
+            timing: '< 5 min',
+            fonte: 'UK Kidney Association 2023',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'eletro-2',
+            title: '2º Passo: Shift Intracelular de Potássio (Insulina + Glicose)',
+            detail:
+              'Solução polarizante: Insulina Regular 10 UI em 50 g de Glicose (100 mL de Glicose a 50% ou 500 mL de Glicose a 10%) EV infundida em 15 a 30 minutos. Reduz o K+ em 0,6 a 1,0 mEq/L em 30 a 60 minutos. Adjuvante: Nebulização contínua com Salbutamol 10 a 20 mg em 4 mL de SF 0,9% em 10 minutos (efeito sinérgico via receptores beta-2). Monitorar glicemia a cada hora por 6 horas.',
+            priority: 'emergency',
+            timing: '< 15 min',
+            fonte: 'UKKA 2023',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'eletro-3',
+            title: '3º Passo: Eliminação Corporal e Terapia Renal Substitutiva',
+            detail:
+              'Se diurese preservada: Furosemida 40 a 80 mg EV em bólus. Quelação intestinal: Ciclossilicato de Zircônio Sódico (Lokelma) 10 g VO 3 vezes ao dia nas primeiras 48h. Se anúria, insuficiência renal dialítica ou hipercalemia refratária: acionar HEMODIÁLISE DE EMERGÊNCIA imediatamente.',
+            priority: 'high',
+            timing: '< 1 hora',
+            fonte: 'UK Kidney Association 2023',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+      {
+        phaseTitle: 'Manejo da Hiponatremia Grave e Proteção Neurológica',
+        timeWindow: '0 - 24 horas',
+        items: [
+          {
+            id: 'eletro-4',
+            title: 'Hiponatremia com Sintomas Graves: Salina a 3% em Bólus',
+            detail:
+              'Em presença de convulsão, coma, estupor ou hipertensão intracraniana: administrar IMEDIATAMENTE 150 mL de Solução Fisiológica Hipertônica a 3% EV em 20 minutos. Repetir dosagem de sódio e reavaliar sintomas neurológicos. Se sintomas graves persistirem, repetir o bólus de 150 mL de NaCl 3% em 20 min até 2 vezes (total de até 3 bólus ou até atingir aumento de 5 mEq/L no Na+ sérico).',
+            priority: 'emergency',
+            timing: 'Imediato (< 20 min)',
+            fonte: 'ESE/ESICM/ERA Guidelines',
+            statusRecomendacao: 'VERIFICAR',
+          },
+          {
+            id: 'eletro-5',
+            title: 'Teto Estrito de Segurança Diária (Prevenção de Desmielinização Osmótica)',
+            detail:
+              'ALERTA CRÍTICO: Não ultrapassar a elevação máxima de 10 mEq/L nas primeiras 24 horas (e limite de ≤ 8 mEq/L/dia em pacientes com alto risco: desnutrição, alcoolismo, cirrose hepática ou hipocalemia associada). Se ocorrer supercorreção acidental (> 10 mEq/L em 24h): suspender fluidos hipertônicos, administrar SG 5% EV e considerar desmopressina (DDAVP 1 a 2 mcg SC) para reverter a elevação rápida e proteger a mielina pontina.',
+            priority: 'emergency',
+            timing: 'Monitorização seriada em 24h',
+            fonte: 'ESE/ERA Guidelines',
+            statusRecomendacao: 'VERIFICAR',
+          },
+        ],
+      },
+    ],
+    icuAdmissionCriteria: [
+      'Hipercalemia grave com alterações eletrocardiográficas ou necessidade de hemodiálise de emergência',
+      'Hiponatremia sintomática grave tratada com salina hipertônica a 3% em bólus',
+      'Distúrbios ácido-base graves com acidose metabólica profunda (pH < 7,10) ou choque associado',
+    ],
+    references: [
+      'UK Kidney Association: Clinical Practice Guideline on Management of Hyperkalaemia in Adults, Oct 2023.',
+      'Spasovski G, et al. Clinical practice guideline on diagnosis and treatment of hyponatraemia. Eur J Endocrinol 2014.',
+    ],
+  },
+];
+===== END FILE =====
+
+===== FILE: lib/pediatric.ts =====
+/**
+ * AuraMed - Módulo Pediátrico (fase inicial: PARADA CARDIORRESPIRATÓRIA PEDIÁTRICA)
+ *
+ * Este módulo é SEPARADO dos motores de adulto (que recusam idade < 18 anos e peso < 30 kg de propósito).
+ * Princípios:
+ *  - Idade em MESES e peso com ORIGEM obrigatória (medido ou estimado); peso estimado gera aviso.
+ *  - Faixas de plausibilidade por faixa etária (detectam erro de digitação, ex.: 7 kg em vez de 70 kg).
+ *  - Dose por kg com TETO (dose máxima), sempre mostrando quando o teto foi aplicado.
+ *  - Entrada inválida => ClinicalInputError. Nada é corrigido em silêncio.
+ *  - Só entram fármacos/energias com fonte conferida. Atropina, adenosina, cardioversão, bicarbonato, cálcio etc.
+ *    NÃO estão neste módulo e devem sair como "NÃO CALCULADO" até serem cadastrados com fonte.
+ *
+ * Fonte principal: Parte 8 das Diretrizes AHA/AAP 2025 (algoritmo de parada cardíaca pediátrica, Figura 2), conferida no texto original.
+ * A repetição e a manutenção da lidocaína NÃO fazem parte do algoritmo e foram retiradas (a versão anterior usava um cartão de bolso).
+ * Todos os resultados saem com validacaoClinica 'PENDENTE' até revisão por médico.
+ */
+
+import type { CalculationExplanation } from '../types/clinical';
+import { ClinicalInputError, checkRange, throwIfErrors, type Range } from './validation';
+
+export type WeightOrigin = 'medido' | 'estimado';
+
+export interface PediatricInput {
+  ageMonths: number; // 0 a < 216 (18 anos)
+  weightKg: number;
+  weightOrigin: WeightOrigin;
+}
+
+export interface AgeBand {
+  id: string;
+  label: string;
+  minMonths: number; // inclusive
+  maxMonths: number; // exclusivo
+  weightKg: Range; // faixa de PLAUSIBILIDADE (não é referência de normalidade)
+}
+
+/** Faixas de plausibilidade para detectar erro de digitação. Ajustáveis pelo revisor médico. */
+export const PEDIATRIC_AGE_BANDS: AgeBand[] = [
+  { id: 'rn', label: 'Recém-nascido (até 1 mês)', minMonths: 0, maxMonths: 1, weightKg: [1.5, 6] },
+  { id: 'lactente', label: 'Lactente (1 a 12 meses)', minMonths: 1, maxMonths: 12, weightKg: [2.5, 14] },
+  { id: 'crianca_pequena', label: 'Criança pequena (1 a 5 anos)', minMonths: 12, maxMonths: 60, weightKg: [6, 30] },
+  { id: 'crianca', label: 'Criança (5 a 12 anos)', minMonths: 60, maxMonths: 144, weightKg: [12, 80] },
+  { id: 'adolescente', label: 'Adolescente (12 a 17 anos)', minMonths: 144, maxMonths: 216, weightKg: [25, 200] },
+];
+
+export const PEDIATRIC_FONTE_ALGORITMO = 'AHA/AAP 2025, Parte 8 (SAV pediátrico), Figura 2: algoritmo de parada cardíaca pediátrica (Circulation 2025;152 suppl 2:S479-S537)';
+export const PEDIATRIC_FONTE_RESUMO = 'AHA 2025, Parte 1 (resumo executivo), seção de SAV pediátrico (Circulation 2025;152 suppl 2:S284-S312)';
+
+export interface PediatricValidation {
+  band: AgeBand;
+  warnings: string[];
+}
+
+/** Valida a entrada pediátrica. Lança ClinicalInputError se algo for inválido. */
+export function validatePediatricInput(input: PediatricInput): PediatricValidation {
+  const errors: string[] = [];
+  const { ageMonths, weightKg, weightOrigin } = input;
+
+  if (typeof ageMonths !== 'number' || !Number.isFinite(ageMonths) || ageMonths < 0) {
+    errors.push(`Idade inválida: ${String(ageMonths)} (informe a idade em meses, a partir de 0).`);
+  } else if (ageMonths >= 216) {
+    errors.push(`Idade de ${Math.floor(ageMonths / 12)} anos: este módulo é só para menores de 18 anos; use o módulo adulto.`);
+  }
+  if (weightOrigin !== 'medido' && weightOrigin !== 'estimado') {
+    errors.push(`Origem do peso obrigatória: informe "medido" ou "estimado" (recebido: ${String(weightOrigin)}).`);
+  }
+  throwIfErrors(errors); // idade e origem precisam estar corretas para escolher a faixa
+
+  const band = PEDIATRIC_AGE_BANDS.find((b) => ageMonths >= b.minMonths && ageMonths < b.maxMonths) as AgeBand;
+  checkRange(errors, `Peso (${band.label})`, weightKg, band.weightKg, 'kg');
+  throwIfErrors(errors);
+
+  const warnings: string[] = [];
+  if (weightOrigin === 'estimado') {
+    warnings.push('PESO ESTIMADO: as doses por kg dependem dele. Substitua pelo peso medido assim que possível.');
+  }
+  if (band.id === 'adolescente') {
+    warnings.push('ADOLESCENTE: a AHA orienta seguir a conduta de adulto em adolescentes com sinais de puberdade. Avalie a maturação e, se pós-puberal, use o protocolo adulto.');
+  }
+  return { band, warnings };
+}
+
+// ---------------------------------------------------------------------------
+// Parada cardiorrespiratória pediátrica
+// ---------------------------------------------------------------------------
+
+export interface PedDoseItem {
+  id: string;
+  nome: string;
+  doseMg?: number; // dose absoluta em mg
+  doseTexto: string; // texto pronto para a tela
+  volumeMl?: number; // volume na concentração informada
+  concentracao?: string;
+  tetoAplicado: boolean;
+  observacao: string;
+  fonte: string;
+  statusRecomendacao: 'CONFIRMADA' | 'VERIFICAR';
+  validacaoClinica: 'PENDENTE';
+  explanation: CalculationExplanation;
+}
+
+export interface PedNote {
+  id: string;
+  texto: string;
+  fonte: string;
+  statusRecomendacao: 'CONFIRMADA';
+  validacaoClinica: 'PENDENTE';
+}
+
+export interface PedDefibrillation {
+  firstJ: number; // 2 J/kg
+  secondJ: number; // 4 J/kg
+  subsequentMinJ: number; // ≥ 4 J/kg
+  subsequentMaxJ: number; // 10 J/kg
+  nota: string;
+  fonte: string;
+  statusRecomendacao: 'CONFIRMADA';
+  validacaoClinica: 'PENDENTE';
+}
+
+export interface PediatricArrestResult {
+  band: AgeBand;
+  weightKg: number;
+  weightOrigin: WeightOrigin;
+  warnings: string[];
+  defibrillation: PedDefibrillation;
+  items: PedDoseItem[];
+  notes: PedNote[]; // orientações do algoritmo que não são doses (relação compressão-ventilação, metas de PA, EtCO2)
+}
+
+const r1 = (n: number) => Math.round(n * 10) / 10;
+const r2 = (n: number) => Math.round(n * 100) / 100;
+const r3 = (n: number) => Math.round(n * 1000) / 1000;
+
+function explain(
+  engineName: string,
+  equation: string,
+  vars: Record<string, string>,
+  steps: { label: string; formula: string; valuesSubstituted: string; result: string }[],
+  value: number,
+  unit: string,
+  interpretation: string,
+  fonte: string,
+  notes: string[]
+): CalculationExplanation {
+  return {
+    engineName,
+    clinicalPurpose: 'Dose por peso na parada cardiorrespiratória pediátrica',
+    reference: fonte,
+    primaryEquation: equation,
+    variablesUsed: vars,
+    steps,
+    finalResult: { value, unit, interpretation, severity: 'normal' },
+    clinicalNotes: notes,
+  };
+}
+
+/** Doses e energias da parada cardiorrespiratória pediátrica, por peso. */
+export function calculatePediatricArrest(input: PediatricInput): PediatricArrestResult {
+  const { band, warnings } = validatePediatricInput(input);
+  const w = input.weightKg;
+  const wTxt = `${w} kg (${input.weightOrigin})`;
+
+  // --- Desfibrilação: 2 J/kg, depois 4 J/kg, depois ≥ 4 J/kg até 10 J/kg ou dose de adulto ---
+  const defibrillation: PedDefibrillation = {
+    firstJ: r1(2 * w),
+    secondJ: r1(4 * w),
+    subsequentMinJ: r1(4 * w),
+    subsequentMaxJ: r1(10 * w),
+    nota: 'Choques seguintes: de 4 J/kg até no máximo 10 J/kg, sem ultrapassar a dose de adulto do desfibrilador (vale o menor valor). Ajuste ao passo de energia do equipamento.',
+    fonte: PEDIATRIC_FONTE_ALGORITMO,
+    statusRecomendacao: 'CONFIRMADA',
+    validacaoClinica: 'PENDENTE',
+  };
+
+  const items: PedDoseItem[] = [];
+
+  // --- Epinefrina IV/IO: 0,01 mg/kg (0,1 mL/kg da solução de 0,1 mg/mL), máx. 1 mg, a cada 3–5 min ---
+  {
+    const raw = 0.01 * w;
+    const dose = Math.min(raw, 1);
+    const teto = raw > 1;
+    const vol = r2(dose / 0.1);
+    items.push({
+      id: 'ped-epinefrina',
+      nome: 'Epinefrina IV/IO',
+      doseMg: r3(dose),
+      doseTexto: `${r3(dose)} mg (${vol} mL da solução de 0,1 mg/mL) a cada 3 a 5 min`,
+      volumeMl: vol,
+      concentracao: '0,1 mg/mL',
+      tetoAplicado: teto,
+      observacao: teto ? 'Dose máxima de 1 mg aplicada (0,01 mg/kg ultrapassaria o teto).' : 'Dose máxima por administração: 1 mg.',
+      fonte: PEDIATRIC_FONTE_ALGORITMO,
+      statusRecomendacao: 'CONFIRMADA',
+      validacaoClinica: 'PENDENTE',
+      explanation: explain(
+        'Epinefrina na PCR pediátrica',
+        'Dose (mg) = mín(0,01 mg/kg × peso, 1 mg); volume (mL) = dose ÷ 0,1 mg/mL',
+        { Peso: wTxt, Concentração: '0,1 mg/mL (1:10.000)' },
+        [
+          { label: '1. Dose por peso', formula: '0,01 × peso', valuesSubstituted: `0,01 × ${w}`, result: `${r3(raw)} mg` },
+          { label: '2. Teto', formula: 'mín(dose, 1 mg)', valuesSubstituted: `mín(${r3(raw)}, 1)`, result: `${r3(dose)} mg` },
+          { label: '3. Volume', formula: 'dose ÷ 0,1 mg/mL', valuesSubstituted: `${r3(dose)} ÷ 0,1`, result: `${vol} mL` },
+        ],
+        r3(dose), 'mg', `${r3(dose)} mg = ${vol} mL a 0,1 mg/mL`, PEDIATRIC_FONTE_ALGORITMO,
+        ['Confira a concentração do frasco: a solução de 0,1 mg/mL é a de 1:10.000 (não confundir com a de 1 mg/mL).']
+      ),
+    });
+  }
+
+  // --- Amiodarona IV/IO: 5 mg/kg em bolus (máx. 300 mg); repetir até 3 doses, com máx. de 150 mg nas seguintes ---
+  {
+    const raw = 5 * w;
+    const d1 = Math.min(raw, 300);
+    const dRep = Math.min(raw, 150);
+    items.push({
+      id: 'ped-amiodarona-1',
+      nome: 'Amiodarona IV/IO (1ª dose, FV/TV sem pulso refratária)',
+      doseMg: r1(d1),
+      doseTexto: `${r1(d1)} mg em bolus`,
+      tetoAplicado: raw > 300,
+      observacao: raw > 300 ? 'Dose máxima de 300 mg aplicada.' : 'Dose máxima da 1ª dose: 300 mg.',
+      fonte: PEDIATRIC_FONTE_ALGORITMO,
+      statusRecomendacao: 'CONFIRMADA',
+      validacaoClinica: 'PENDENTE',
+      explanation: explain(
+        'Amiodarona na PCR pediátrica (1ª dose)',
+        'Dose (mg) = mín(5 mg/kg × peso, 300 mg)',
+        { Peso: wTxt },
+        [
+          { label: '1. Dose por peso', formula: '5 × peso', valuesSubstituted: `5 × ${w}`, result: `${r1(raw)} mg` },
+          { label: '2. Teto', formula: 'mín(dose, 300 mg)', valuesSubstituted: `mín(${r1(raw)}, 300)`, result: `${r1(d1)} mg` },
+        ],
+        r1(d1), 'mg', `${r1(d1)} mg em bolus`, PEDIATRIC_FONTE_ALGORITMO,
+        ['Reservada a FV/TV sem pulso que persiste após choques.']
+      ),
+    });
+    items.push({
+      id: 'ped-amiodarona-repeticao',
+      nome: 'Amiodarona IV/IO (2ª e 3ª doses, se refratária)',
+      doseMg: r1(dRep),
+      doseTexto: `${r1(dRep)} mg em bolus (até 3 doses no total)`,
+      tetoAplicado: raw > 150,
+      observacao: raw > 150 ? 'Dose máxima de 150 mg aplicada nas doses seguintes.' : 'Dose máxima das doses seguintes: 150 mg.',
+      fonte: PEDIATRIC_FONTE_ALGORITMO,
+      statusRecomendacao: 'CONFIRMADA',
+      validacaoClinica: 'PENDENTE',
+      explanation: explain(
+        'Amiodarona na PCR pediátrica (repetição)',
+        'Dose (mg) = mín(5 mg/kg × peso, 150 mg)',
+        { Peso: wTxt },
+        [
+          { label: '1. Dose por peso', formula: '5 × peso', valuesSubstituted: `5 × ${w}`, result: `${r1(raw)} mg` },
+          { label: '2. Teto das doses seguintes', formula: 'mín(dose, 150 mg)', valuesSubstituted: `mín(${r1(raw)}, 150)`, result: `${r1(dRep)} mg` },
+        ],
+        r1(dRep), 'mg', `${r1(dRep)} mg por dose repetida`, PEDIATRIC_FONTE_ALGORITMO,
+        ['O algoritmo permite repetir até um total de 3 doses.']
+      ),
+    });
+  }
+
+  // --- Lidocaína (alternativa à amiodarona): 1 mg/kg de ataque; repetição e manutenção conforme o cartão ---
+  {
+    const load = 1 * w;
+    items.push({
+      id: 'ped-lidocaina-ataque',
+      nome: 'Lidocaína IV/IO (ataque, alternativa à amiodarona)',
+      doseMg: r2(load),
+      doseTexto: `${r2(load)} mg em dose de ataque`,
+      tetoAplicado: false,
+      observacao: 'Alternativa à amiodarona na FV/TV sem pulso refratária.',
+      fonte: PEDIATRIC_FONTE_ALGORITMO,
+      statusRecomendacao: 'CONFIRMADA',
+      validacaoClinica: 'PENDENTE',
+      explanation: explain(
+        'Lidocaína na PCR pediátrica (ataque)',
+        'Dose (mg) = 1 mg/kg × peso',
+        { Peso: wTxt },
+        [{ label: '1. Dose por peso', formula: '1 × peso', valuesSubstituted: `1 × ${w}`, result: `${r2(load)} mg` }],
+        r2(load), 'mg', `${r2(load)} mg`, PEDIATRIC_FONTE_ALGORITMO, []
+      ),
+    });
+  }
+
+  const mk = (id: string, texto: string, fonte: string): PedNote => ({ id, texto, fonte, statusRecomendacao: 'CONFIRMADA', validacaoClinica: 'PENDENTE' });
+  const notes: PedNote[] = [
+    mk(
+      'ped-nota-compressoes',
+      'Compressões: pelo menos 1/3 do diâmetro anteroposterior do tórax, 100 a 120 por minuto, com retorno completo do tórax e revezamento do compressor a cada 2 minutos. Sem via aérea avançada: 15:2 com 2 socorristas em pré-púberes; 30:2 com 1 socorrista (qualquer idade) ou 2 socorristas pós-púberes. Com via aérea avançada: compressões contínuas e 1 ventilação a cada 2 a 3 segundos.',
+      PEDIATRIC_FONTE_ALGORITMO
+    ),
+    mk(
+      'ped-nota-pad',
+      'Se houver monitorização invasiva da pressão arterial durante a RCP, pode ser razoável buscar pressão diastólica de pelo menos 25 mmHg em lactentes e de pelo menos 30 mmHg em crianças com 1 ano ou mais (COR 2b, LOE C-LD).',
+      PEDIATRIC_FONTE_RESUMO
+    ),
+    mk(
+      'ped-nota-etco2',
+      'Em via aérea avançada, pode-se considerar o monitoramento do CO2 expirado para avaliar a qualidade da RCP; um valor isolado de corte de EtCO2 não deve ser a única indicação para encerrar a ressuscitação.',
+      PEDIATRIC_FONTE_RESUMO
+    ),
+    mk(
+      'ped-nota-pos-rce',
+      'Após a parada em bebês e crianças, manter a pressão arterial sistólica e a média pelo menos no percentil 10 para a idade (COR 1, LOE B-NR) e monitorar a pressão arterial de forma contínua quando houver recursos (COR 1, LOE C-EO).',
+      PEDIATRIC_FONTE_RESUMO
+    ),
+  ];
+
+  return { band, weightKg: w, weightOrigin: input.weightOrigin, warnings, defibrillation, items, notes };
+}
+
+/** Texto de escopo exibido pelo app quando a calculadora pediátrica é aberta. */
+export const PEDIATRIC_SCOPE_NOTE =
+  'Módulo pediátrico em fase inicial: só parada cardiorrespiratória (epinefrina, amiodarona, lidocaína em dose de ataque e energia de choque). Atropina, adenosina, cardioversão, bicarbonato, cálcio, fluidos, sedação e demais protocolos pediátricos NÃO estão cadastrados.';
+
+export { ClinicalInputError };
+===== END FILE =====
+
+===== FILE: lib/__tests__/pediatric.test.ts =====
+/**
+ * AuraMed - testes do módulo pediátrico (PCR pediátrica). Rodar: npx vitest run
+ * Valores de referência: algoritmo de parada cardíaca pediátrica do PALS 2025 (AHA/AAP).
+ */
+import { describe, expect, it } from 'vitest';
+import { PEDIATRIC_AGE_BANDS, calculatePediatricArrest, validatePediatricInput } from '../pediatric';
+import { calculateCkdEpi2021, calculateCockcroftGault } from '../tfg';
+import { convertMcgKgMinToMlHr } from '../infusion';
+import { ClinicalInputError } from '../validation';
+
+const ped = (ageMonths: number, weightKg: number, weightOrigin: 'medido' | 'estimado' = 'medido') => ({ ageMonths, weightKg, weightOrigin });
+const item = (r: ReturnType<typeof calculatePediatricArrest>, id: string) => r.items.find((i) => i.id === id)!;
+
+describe('PCR pediátrica - valores de referência (criança de 15 kg, 4 anos)', () => {
+  const r = calculatePediatricArrest(ped(48, 15));
+  it('epinefrina: 0,01 mg/kg = 0,15 mg = 1,5 mL de 0,1 mg/mL', () => {
+    expect(item(r, 'ped-epinefrina').doseMg).toBeCloseTo(0.15, 3);
+    expect(item(r, 'ped-epinefrina').volumeMl).toBeCloseTo(1.5, 2);
+    expect(item(r, 'ped-epinefrina').tetoAplicado).toBe(false);
+  });
+  it('amiodarona: 5 mg/kg = 75 mg', () => expect(item(r, 'ped-amiodarona-1').doseMg).toBeCloseTo(75, 1));
+  it('amiodarona repetida: 75 mg (abaixo do teto de 150 mg)', () => expect(item(r, 'ped-amiodarona-repeticao').doseMg).toBeCloseTo(75, 1));
+  it('lidocaína de ataque: 1 mg/kg = 15 mg', () => expect(item(r, 'ped-lidocaina-ataque').doseMg).toBeCloseTo(15, 2));
+  it('desfibrilação: 2 J/kg = 30 J; 4 J/kg = 60 J; seguintes de 60 a 150 J (10 J/kg)', () => {
+    expect(r.defibrillation.firstJ).toBe(30);
+    expect(r.defibrillation.secondJ).toBe(60);
+    expect(r.defibrillation.subsequentMinJ).toBe(60);
+    expect(r.defibrillation.subsequentMaxJ).toBe(150);
+  });
+});
+
+describe('PCR pediátrica - lactente e tetos', () => {
+  it('lactente de 3,5 kg: epinefrina 0,035 mg = 0,35 mL; choques 7 J e 14 J', () => {
+    const r = calculatePediatricArrest(ped(4, 3.5));
+    expect(item(r, 'ped-epinefrina').doseMg).toBeCloseTo(0.035, 3);
+    expect(item(r, 'ped-epinefrina').volumeMl).toBeCloseTo(0.35, 2);
+    expect(r.defibrillation.firstJ).toBe(7);
+    expect(r.defibrillation.secondJ).toBe(14);
+  });
+  it('adolescente de 120 kg: epinefrina limitada a 1 mg (10 mL) e amiodarona a 300 mg / 150 mg', () => {
+    const r = calculatePediatricArrest(ped(200, 120));
+    expect(item(r, 'ped-epinefrina').doseMg).toBe(1);
+    expect(item(r, 'ped-epinefrina').volumeMl).toBeCloseTo(10, 2);
+    expect(item(r, 'ped-epinefrina').tetoAplicado).toBe(true);
+    expect(item(r, 'ped-amiodarona-1').doseMg).toBe(300);
+    expect(item(r, 'ped-amiodarona-1').tetoAplicado).toBe(true);
+    expect(item(r, 'ped-amiodarona-repeticao').doseMg).toBe(150);
+  });
+  it('a dose de epinefrina NUNCA passa de 1 mg, para qualquer peso plausível', () => {
+    [25, 30, 60, 90, 120, 150, 200].forEach((kg) => {
+      const r = calculatePediatricArrest(ped(200, kg));
+      expect(item(r, 'ped-epinefrina').doseMg as number).toBeLessThanOrEqual(1);
+      expect(item(r, 'ped-amiodarona-1').doseMg as number).toBeLessThanOrEqual(300);
+    });
+  });
+  it('a nota de choque lembra do limite da dose de adulto', () => {
+    expect(calculatePediatricArrest(ped(48, 15)).defibrillation.nota).toContain('dose de adulto');
+  });
+});
+
+describe('PCR pediátrica - avisos', () => {
+  it('peso estimado gera aviso', () => {
+    expect(calculatePediatricArrest(ped(48, 15, 'estimado')).warnings.join(' ')).toContain('PESO ESTIMADO');
+  });
+  it('peso medido não gera aviso de estimativa', () => {
+    expect(calculatePediatricArrest(ped(48, 15, 'medido')).warnings.join(' ')).not.toContain('PESO ESTIMADO');
+  });
+  it('adolescente gera aviso para seguir a conduta de adulto se pós-puberal', () => {
+    expect(calculatePediatricArrest(ped(180, 55)).warnings.join(' ')).toContain('ADOLESCENTE');
+  });
+  it('lidocaína só tem dose de ataque: a repetição/manutenção não consta do algoritmo e foi retirada', () => {
+    const r = calculatePediatricArrest(ped(48, 15));
+    expect(r.items.find((i) => i.id === 'ped-lidocaina-repeticao-manutencao')).toBeUndefined();
+    expect(item(r, 'ped-lidocaina-ataque').statusRecomendacao).toBe('CONFIRMADA');
+  });
+  it('notas do algoritmo: relação 15:2, PAD alvo e EtCO2, todas com fonte', () => {
+    const r = calculatePediatricArrest(ped(48, 15));
+    expect(r.notes.map((n) => n.texto).join(' ')).toContain('15:2');
+    expect(r.notes.map((n) => n.texto).join(' ')).toContain('25 mmHg');
+    r.notes.forEach((n) => { expect(n.fonte.length).toBeGreaterThan(0); expect(n.validacaoClinica).toBe('PENDENTE'); });
+  });
+  it('nenhum resultado sai marcado como VALIDADO sem revisão médica', () => {
+    const r = calculatePediatricArrest(ped(48, 15));
+    r.items.forEach((i) => expect(i.validacaoClinica).toBe('PENDENTE'));
+    expect(r.defibrillation.validacaoClinica).toBe('PENDENTE');
+  });
+  it('todo item tem fonte e "como calculei"', () => {
+    calculatePediatricArrest(ped(48, 15)).items.forEach((i) => {
+      expect(i.fonte.length).toBeGreaterThan(0);
+      expect(i.explanation.steps.length).toBeGreaterThan(0);
+    });
+  });
+});
+
+describe('Módulo pediátrico - entradas inválidas são recusadas', () => {
+  const casos: [string, () => unknown][] = [
+    ['idade de 18 anos (usar o módulo adulto)', () => calculatePediatricArrest(ped(216, 60))],
+    ['idade negativa', () => calculatePediatricArrest(ped(-1, 10))],
+    ['idade NaN', () => calculatePediatricArrest(ped(NaN, 10))],
+    ['peso 0', () => calculatePediatricArrest(ped(48, 0))],
+    ['peso NaN', () => calculatePediatricArrest(ped(48, NaN))],
+    ['peso de adulto para lactente de 3 meses (70 kg)', () => calculatePediatricArrest(ped(3, 70))],
+    ['peso de 7 kg para criança de 11 anos (digitou 7 em vez de 70)', () => calculatePediatricArrest(ped(132, 7))],
+    ['peso de lactente para adolescente (4 kg aos 15 anos)', () => calculatePediatricArrest(ped(180, 4))],
+    ['origem do peso ausente', () => calculatePediatricArrest({ ageMonths: 48, weightKg: 15 } as never)],
+    ['origem do peso inválida', () => calculatePediatricArrest({ ageMonths: 48, weightKg: 15, weightOrigin: 'chute' } as never)],
+  ];
+  casos.forEach(([nome, fn]) => it(`lança ClinicalInputError: ${nome}`, () => expect(fn).toThrow(ClinicalInputError)));
+  it('validatePediatricInput devolve a faixa etária correta', () => {
+    expect(validatePediatricInput(ped(0, 3)).band.id).toBe('rn');
+    expect(validatePediatricInput(ped(6, 7)).band.id).toBe('lactente');
+    expect(validatePediatricInput(ped(36, 14)).band.id).toBe('crianca_pequena');
+    expect(validatePediatricInput(ped(96, 25)).band.id).toBe('crianca');
+    expect(validatePediatricInput(ped(215, 60)).band.id).toBe('adolescente');
+  });
+  it('as faixas etárias cobrem de 0 a 18 anos sem buracos nem sobreposição', () => {
+    for (let i = 1; i < PEDIATRIC_AGE_BANDS.length; i++) expect(PEDIATRIC_AGE_BANDS[i].minMonths).toBe(PEDIATRIC_AGE_BANDS[i - 1].maxMonths);
+    expect(PEDIATRIC_AGE_BANDS[0].minMonths).toBe(0);
+    expect(PEDIATRIC_AGE_BANDS[PEDIATRIC_AGE_BANDS.length - 1].maxMonths).toBe(216);
+  });
+});
+
+describe('Fronteira adulto/pediatria: os motores de adulto continuam recusando crianças', () => {
+  it('TFG de adulto recusa 12 anos e 25 kg', () => {
+    expect(() => calculateCkdEpi2021(12, 'M', 0.6)).toThrow(ClinicalInputError);
+    expect(() => calculateCockcroftGault(12, 'M', 25, 140, 0.6)).toThrow(ClinicalInputError);
+  });
+  it('infusão com peso pediátrico (10 kg) é recusada pelo motor de adulto', () => {
+    expect(() => convertMcgKgMinToMlHr(0.1, 10, 16)).toThrow(ClinicalInputError);
+  });
+});
+===== END FILE =====
+
+===== FILE: data/medical-audit-checklist.ts =====
+/**
+ * AuraMed - Checklist para o Revisor Médico e Itens a VERIFICAR
+ *
+ * Como ler os status (nada aqui é validação clínica final):
+ *  - VERIFICADO_POR_TESTE      → a aritmética/regra de software tem teste automatizado (não prova que o conteúdo clínico está certo).
+ *  - CORRIGIDO_AGUARDA_REVISAO → falha corrigida no código; o conteúdo clínico ainda precisa de revisão médica.
+ *  - PENDENTE_REVISAO_MEDICA   → depende de decisão/conferência de médico ou farmacêutico.
+ *  - ATENCAO_CRITICA           → risco conhecido AINDA NÃO resolvido; resolver antes de qualquer uso.
+ *
+ * Nenhum item deve ser marcado como validado sem a assinatura de um médico revisor.
+ */
+
+import type { AuditStatus, MedicalAuditItem } from '../types/clinical';
+
+export const AUDIT_STATUS_LABELS: Record<AuditStatus, string> = {
+  VERIFICADO_POR_TESTE: 'Verificado por teste automatizado',
+  CORRIGIDO_AGUARDA_REVISAO: 'Corrigido — aguarda revisão médica',
+  PENDENTE_REVISAO_MEDICA: 'Pendente de revisão médica',
+  ATENCAO_CRITICA: 'Atenção crítica — resolver antes de usar',
+  VERIFICADO_PELO_MOTOR: 'Obsoleto',
+};
+
+export const MEDICAL_AUDIT_CHECKLIST: MedicalAuditItem[] = [
+  // ------------------------------ Fórmulas -----------------------------------
+  {
+    id: 'audit-ckd-epi',
+    category: 'Fórmula Matemática',
+    item: 'Equação CKD-EPI 2021 (sem variável racial)',
+    guidelineReference: 'CKD-EPI 2021 (creatinina), adotada por KDIGO/NKF',
+    status: 'VERIFICADO_POR_TESTE',
+    notes: 'Constantes (κ, α, fator 1,012) e exponenciais conferidos contra cálculo manual em 4 casos de referência.',
+    acaoNecessaria: 'Confirmar a edição vigente da guideline KDIGO a citar na interface.',
+    testeAutomatizado: ['TFG - valores de referência'],
+    arquivo: 'lib/tfg.ts',
+  },
+  {
+    id: 'audit-cockcroft-weight',
+    category: 'Fórmula Matemática',
+    item: 'Convenção de peso no Cockcroft-Gault (real / ideal de Devine / ajustado)',
+    guidelineReference: 'A definir pelo revisor (bula do fármaco ou protocolo institucional)',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Decisão do revisor: usar o PESO AJUSTADO (ideal de Devine + 0,4 × (real − ideal)); se o peso real for menor ou igual ao ideal, usa-se o real. A política fica em uma constante (DEFAULT_CG_WEIGHT_POLICY) e vale para a calculadora, a conduta e o ajuste renal. Atenção: em pacientes eutróficos, o peso ajustado reduz o clearance estimado em poucos por cento em relação ao peso real, o que é conservador para fármacos nefrotóxicos mas pode subdosar fármacos de eliminação renal.',
+    acaoNecessaria: 'Registrar a fonte ou o protocolo institucional que sustenta a política única de peso ajustado e conferir se algum fármaco do registro exige outra estimativa (por exemplo, bula que pede peso real).',
+    testeAutomatizado: ['TFG - valores de referência (política padrão ajustada, forçada e peso real abaixo do ideal)'],
+    arquivo: 'lib/tfg.ts',
+  },
+  {
+    id: 'audit-tfg-validation',
+    category: 'Segurança do Software',
+    item: 'Validação de entradas da TFG (idade 18–120, peso 30–300 kg, altura 120–230 cm, creatinina 0,2–20 mg/dL)',
+    guidelineReference: 'Faixas de plausibilidade (detecção de erro de digitação, não metas clínicas)',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes: 'Antes: creatinina 0 virava 0,1 em silêncio (TFG 190), criança recebia a equação adulta e NaN se propagava. Agora lança ClinicalInputError.',
+    acaoNecessaria: 'Aprovar ou ajustar as faixas em lib/validation.ts.',
+    testeAutomatizado: ['TFG - entradas inválidas são recusadas'],
+    arquivo: 'lib/validation.ts, lib/tfg.ts',
+  },
+  {
+    id: 'audit-tfg-reliability',
+    category: 'Fórmula Matemática',
+    item: 'Aviso de confiabilidade da TFG (creatinina instável, diálise, extremos de peso)',
+    guidelineReference: 'KDIGO (conceito de estado estável)',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Aviso exibido em toda estimativa. A faixa KDIGO aplicada ao Cockcroft-Gault foi renomeada para "faixa de função renal para dose", porque o valor é mL/min não indexado. Diálise gera alerta próprio na conduta.',
+    acaoNecessaria: 'Revisar o texto do aviso e decidir se estimativas devem ser ocultadas em lesão renal aguda.',
+    testeAutomatizado: ['TFG completa devolve ambas as estimativas e avisos'],
+    arquivo: 'lib/tfg.ts',
+  },
+
+  // ------------------------------- Doses -------------------------------------
+  {
+    id: 'audit-infusion-formula',
+    category: 'Dose de Fármaco',
+    item: 'Conversão dimensional mcg/kg/min, mcg/min, UI/min e mg/h ↔ mL/h',
+    guidelineReference: 'Análise dimensional (não depende de guideline); concentração vem da diluição escolhida',
+    status: 'VERIFICADO_POR_TESTE',
+    notes:
+      'Valores de referência (noradrenalina 26,3 mL/h; vasopressina 9 mL/h) e ida e volta em grade de 75 combinações, com erro limitado à resolução de 0,1 mL/h da bomba.',
+    acaoNecessaria: 'Conferir os exemplos de referência manualmente na primeira revisão.',
+    testeAutomatizado: ['Infusão - valores de referência'],
+    arquivo: 'lib/infusion.ts',
+  },
+  {
+    id: 'audit-infusion-input-safety',
+    category: 'Segurança do Software',
+    item: 'Recusa de entradas inválidas na infusão (peso, concentração, dose, taxa)',
+    guidelineReference: 'Segurança do paciente / prevenção de erro de medicação',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Antes: peso 0 era tratado como 1 kg (taxa de 0,4 mL/h), peso 7 (digitação de 70) calculava normalmente e concentração 0 gerava 4,2 milhões de mL/h. Agora lança ClinicalInputError; taxa > 999 mL/h é recusada.',
+    acaoNecessaria: 'Aprovar a faixa de peso adulto (30–300 kg), o limite de bomba (999 mL/h) e o limiar de aviso (300 mL/h).',
+    testeAutomatizado: ['Infusão - entradas inválidas são recusadas'],
+    arquivo: 'lib/infusion.ts, lib/validation.ts',
+  },
+  {
+    id: 'audit-preset-invariant',
+    category: 'Dose de Fármaco',
+    item: 'Concentração derivada de quantidade ÷ volume final (vasopressina corrigida)',
+    guidelineReference: 'Rótulo/bula e diluição padrão da instituição',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'A vasopressina tinha massa de 0,4 "mg" (20 UI equivalem a cerca de 0,04 mg) e concentração declarada de 0,2 UI/mL em campo de mcg, divergentes entre si. Agora há quantidade com unidade (mg ou UI) e a concentração é calculada, sem duplicar o dado.',
+    acaoNecessaria: 'Conferir cada diluição padrão com a farmácia, incluindo se o volume final inclui o volume do fármaco.',
+    testeAutomatizado: ['Presets e registro - invariantes de dados'],
+    arquivo: 'lib/infusion.ts, data/farmacos.ts',
+  },
+  {
+    id: 'audit-nora-base-salt',
+    category: 'Dose de Fármaco',
+    item: 'Noradrenalina: "4 mg" refere-se à base ou ao sal (hemitartarato)?',
+    guidelineReference: 'Bula da apresentação usada pela farmácia',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'A diluição de 4 mg em 250 mL (16 mcg/mL) só está correta se o "mg" for da base. Se for do sal, a concentração real da base é menor.',
+    acaoNecessaria: 'Farmácia confirma a apresentação e define se a dose é expressa em base.',
+    arquivo: 'lib/infusion.ts',
+  },
+  {
+    id: 'audit-nora-extravasation',
+    category: 'Dose de Fármaco',
+    item: 'Extravasamento de noradrenalina: antídoto e acesso periférico',
+    guidelineReference: 'ISMP Brasil / bula / protocolo institucional (a definir)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'A versão anterior afirmava fentolamina 5–10 mg e acesso periférico limitado a 2–4 h, sem fonte. Esses números foram retirados do texto; ficou a orientação geral e a marcação [a confirmar].',
+    acaoNecessaria: 'Definir dose/diluição da fentolamina e o tempo máximo de acesso periférico, com fonte.',
+    arquivo: 'lib/infusion.ts, data/farmacos.ts',
+  },
+  {
+    id: 'audit-vasopressin-regime',
+    category: 'Dose de Fármaco',
+    item: 'Vasopressina: dose fixa de 0,03 UI/min e limite superior',
+    guidelineReference: 'Surviving Sepsis Campaign 2026 (conferir no texto)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'A versão anterior dizia haver uma "trava" contra titulação acima de 0,04 UI/min; essa trava NÃO existia. Hoje o motor apenas sinaliza dose acima da faixa usual (severidade crítica + aviso), sem bloquear.',
+    acaoNecessaria: 'Confirmar dose, faixa e se o limite deve ser bloqueio ou alerta.',
+    testeAutomatizado: ['Infusão - valores de referência (vasopressina)'],
+    arquivo: 'lib/infusion.ts',
+  },
+  {
+    id: 'audit-nipride-antidote',
+    category: 'Dose de Fármaco',
+    item: 'Nitroprussiato: antídoto de cianeto no campo correto',
+    guidelineReference: 'Bula / protocolo de intoxicação por cianeto',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes: 'Hidroxocobalamina e nitrito/tiossulfato estavam no campo extravasationAntidote; foram movidos para toxicityAntidote.',
+    acaoNecessaria: 'Confirmar o esquema do antídoto e os limiares de toxicidade.',
+    testeAutomatizado: ['Presets e registro - invariantes de dados'],
+    arquivo: 'lib/infusion.ts',
+  },
+  {
+    id: 'audit-dose-ranges',
+    category: 'Dose de Fármaco',
+    item: 'Faixas usuais, doses iniciais e passos de titulação de todos os presets',
+    guidelineReference: 'A definir pelo revisor (guideline, bula ou protocolo institucional)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'Os valores vieram da Fase 0 sem fonte registrada. Todos os presets estão com validacaoClinica "PENDENTE" (um teste impede marcar como validado sem revisão).',
+    acaoNecessaria: 'Preencher o campo fonte de cada preset/fármaco e mudar para VALIDADO apenas após conferência.',
+    testeAutomatizado: ['Presets e registro - invariantes de dados'],
+    arquivo: 'lib/infusion.ts, data/farmacos.ts',
+  },
+  {
+    id: 'audit-enoxaparin-regime',
+    category: 'Dose de Fármaco',
+    item: 'Enoxaparina: regime por indicação e ajuste renal',
+    guidelineReference: 'Guidelines de SCA/TEP e bula (a conferir)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'O motor calcula 1 mg/kg a cada 12 h e usa 24 h se ClCr (Cockcroft-Gault) < 30 mL/min. Faltam: regime por indicação (SCA, TEP, profilaxia), idade ≥ 75 anos, obesidade/limite de dose e a decisão de migrar para HNF (ClCr < 30 ou < 15?). Sangramento ativo bloqueia a prescrição.',
+    acaoNecessaria: 'Definir regime por indicação, limiar de ajuste renal e regra de migração para HNF.',
+    testeAutomatizado: ['Conduta - cálculo de doses (enoxaparina)', 'Conduta - segurança (sangramento ativo)'],
+    arquivo: 'data/farmacos.ts, lib/conduta-engine.ts',
+  },
+  {
+    id: 'audit-brand-names',
+    category: 'Dose de Fármaco',
+    item: 'Nomes comerciais brasileiros dos fármacos',
+    guidelineReference: 'Bulário eletrônico ANVISA',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'Nomes comerciais de origem americana ou não conferidos foram removidos (brandNames vazio).',
+    acaoNecessaria: 'Preencher com nomes conferidos no bulário.',
+    arquivo: 'data/farmacos.ts',
+  },
+
+  // ----------------------- Estratificação de risco ---------------------------
+  {
+    id: 'audit-curb65-urea',
+    category: 'Estratificação de Risco',
+    item: 'CURB-65: ponto de corte e unidade da ureia',
+    guidelineReference: 'ATS/IDSA 2019 e SBPT (conferir qual a instituição adota)',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Aplicado: curb_65 e crb_65 seguem a SBPT 2009 (ureia > 50 mg/dL; faixas 0–1, 2 e 3–5 com mortalidades de cerca de 1,5%, 9,2% e 22% no CURB-65, e 0, 1–2 e 3–4 com cerca de 1,2%, 8,15% e 31% no CRB-65), com a ressalva de que o escore é auxiliar. O critério menor de ureia do ATS/IDSA continua com "> 42 mg/dL (BUN ≥ 20 mg/dL)" por ser a regra daquela fonte, e o PSI usa a ureia do PSI; cada escore mantém a própria fonte.',
+    acaoNecessaria: 'O revisor confere o texto dos dois escores contra a SBPT e confirma que manter pontos de corte de ureia diferentes por escore (cada um conforme a sua fonte) é aceitável.',
+    testeAutomatizado: ['tests/scores-engine.test.ts', 'tests/pac-scores.test.ts'],
+    arquivo: 'data/scores.ts',
+  },
+  {
+    id: 'audit-curb65-disposition',
+    category: 'Estratificação de Risco',
+    item: 'CURB-65 não define admissão em UTI',
+    guidelineReference: 'ATS/IDSA 2019 (critérios maiores e menores de gravidade)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'A versão anterior do checklist dizia "3–5 = UTI". O CURB-65 apoia o local de tratamento; a gravidade para UTI usa os critérios ATS/IDSA (planejados em scoresPlanejados).',
+    acaoNecessaria: 'Implementar PSI e critérios ATS/IDSA e ajustar a redação do CURB-65 em scores.ts.',
+    arquivo: 'data/scores.ts, data/mock-protocols.ts',
+  },
+  {
+    id: 'audit-qsofa-alone',
+    category: 'Estratificação de Risco',
+    item: 'Sepse: qSOFA como único score de triagem',
+    guidelineReference: 'Surviving Sepsis Campaign 2026',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'O NEWS2 foi implementado e o qSOFA agora informa que resultado negativo não exclui sepse e que o NEWS2 é a triagem preferencial. Pendências: MEWS e SIRS ainda não existem em scores.ts, e as regras de interpretação do NEWS2 estão incompletas (ver audit-news2-rules).',
+    acaoNecessaria: 'Implementar MEWS e SIRS e concluir as regras do NEWS2.',
+    arquivo: 'data/scores.ts',
+  },
+  {
+    id: 'audit-heart-score',
+    category: 'Estratificação de Risco',
+    item: 'Escore HEART: pontuação, população-alvo e troponina de alta sensibilidade',
+    guidelineReference: 'ACC/AHA 2025 e ESC 2023 (conferir uso do HEART nas guidelines)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'A estrutura de pontuação foi conferida por leitura, mas não há teste automatizado. Aplicar apenas em dor torácica sem supra de ST; revisar os pontos de corte da troponina com ensaios de alta sensibilidade.',
+    acaoNecessaria: 'Criar testes de pontuação e revisar a população-alvo e as faixas de risco com a fonte.',
+    arquivo: 'data/scores.ts',
+  },
+  {
+    id: 'audit-shock-index',
+    category: 'Estratificação de Risco',
+    item: 'Índice de choque (FC/PAS > 0,9) como alerta',
+    guidelineReference: 'A definir pelo revisor',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'A fonte genérica anterior foi removida. O alerta já ressalva idosos e uso de betabloqueador.',
+    acaoNecessaria: 'Definir a fonte e o ponto de corte.',
+    arquivo: 'lib/conduta-engine.ts',
+  },
+
+  // --------------------- Alertas e textos da conduta -------------------------
+  {
+    id: 'audit-airway-glasgow',
+    category: 'Tempo-Alvo',
+    item: 'Alerta de via aérea com Glasgow ≤ 8',
+    guidelineReference: 'A definir (ATLS e diretrizes de via aérea)',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes: 'O texto "indicação formal de IOT" foi trocado por avaliar proteção de via aérea e investigar causas reversíveis (hipoglicemia, opioides, pós-ictal).',
+    acaoNecessaria: 'Revisar o texto do alerta.',
+    testeAutomatizado: ['Conduta - segurança (Glasgow ≤ 8)'],
+    arquivo: 'lib/conduta-engine.ts',
+  },
+  {
+    id: 'audit-map-alert',
+    category: 'Tempo-Alvo',
+    item: 'Alerta de PAM < 65 mmHg neutro quanto ao tipo de choque',
+    guidelineReference: 'Protocolo de cada patologia',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes: 'Antes sugeria ressuscitação volêmica ou noradrenalina para qualquer paciente, o que pode prejudicar no choque cardiogênico ou hemorrágico. Agora orienta identificar o tipo de choque e seguir o protocolo.',
+    acaoNecessaria: 'Revisar o texto; decidir se o alerta deve variar por condição.',
+    testeAutomatizado: ['Conduta - segurança (PAM < 65)'],
+    arquivo: 'lib/conduta-engine.ts',
+  },
+  {
+    id: 'audit-contrast-alert',
+    category: 'Conteúdo Clínico',
+    item: 'Alerta de contraste iodado com TFG < 30',
+    guidelineReference: 'A definir (consenso de contraste e função renal)',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes: 'O texto "evitar contraste" foi trocado por ponderar risco-benefício sem adiar exame essencial.',
+    acaoNecessaria: 'Confirmar o limiar de TFG e a fonte.',
+    testeAutomatizado: ['Conduta - segurança (contraste)'],
+    arquivo: 'lib/conduta-engine.ts',
+  },
+  {
+    id: 'audit-conduct-blocking',
+    category: 'Segurança do Software',
+    item: 'Conduta bloqueada com dados inválidos; alertas de alergia, diálise, gestação, insuficiência hepática e sangramento',
+    guidelineReference: 'Segurança do paciente',
+    status: 'VERIFICADO_POR_TESTE',
+    notes:
+      'Peso inválido ou digitado errado bloqueia todos os cálculos (status DADOS_INVALIDOS) e nenhum fármaco sai com dose em branco. Os alertas só funcionam se os campos forem preenchidos; a verificação de reatividade cruzada de alergias NÃO é automática.',
+    acaoNecessaria: 'Decidir se haverá mapa de classes de alérgenos (ex.: penicilinas/cefalosporinas).',
+    testeAutomatizado: ['Conduta - segurança', 'Conduta - cálculo de doses'],
+    arquivo: 'lib/conduta-engine.ts',
+  },
+
+  // ---------------------------- Conteúdo clínico -----------------------------
+  {
+    id: 'audit-sepsis-guideline',
+    category: 'Conteúdo Clínico',
+    item: 'Sepse: versão da guideline e meta de PAM',
+    guidelineReference: 'Surviving Sepsis Campaign: Adult Guidelines 2026',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Atualizado de SSC 2021 para 2026. Meta de PAM: 65 mmHg, aceitando ±5; sugestão de 60–65 mmHg em ≥ 65 anos. As afirmações foram conferidas em fonte secundária; conferir no texto original. A estatística "7,6% por hora" foi retirada por não ter fonte oficial no protocolo; "SOFA ≥ 2" foi removido dos critérios de UTI (é critério de definição de sepse).',
+    acaoNecessaria: 'Conferir o texto original da SSC 2026 nos itens marcados VERIFICAR.',
+    arquivo: 'data/mock-protocols.ts, lib/infusion.ts',
+  },
+  {
+    id: 'audit-sepsis-fluids',
+    category: 'Conteúdo Clínico',
+    item: 'Sepse: volume de cristaloide por kg e janela de tempo; cautela em cardiopatas',
+    guidelineReference: 'SSC 2026 e diretrizes de insuficiência cardíaca',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'O volume foi retirado do texto até ser conferido. Definir a ressalva para fração de ejeção reduzida (alíquotas menores sob ultrassom pulmonar/VCI).',
+    acaoNecessaria: 'Confirmar o volume e a janela no texto de 2026 e definir a ressalva para cardiopatas.',
+    arquivo: 'data/mock-protocols.ts',
+  },
+  {
+    id: 'audit-sepsis-timing',
+    category: 'Tempo-Alvo',
+    item: 'Sepse: janela de antimicrobiano (1 h) e limite de tempo para coleta de culturas',
+    guidelineReference: 'SSC 2026',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'A regra dos 45 minutos de culturas vinha da edição de 2021 e foi marcada como VERIFICAR; a janela de 1 hora para choque e sepse provável/definida precisa ser conferida no texto.',
+    acaoNecessaria: 'Conferir os tempos-alvo no texto de 2026.',
+    arquivo: 'data/mock-protocols.ts',
+  },
+  {
+    id: 'audit-sepsis-vasopressin-threshold',
+    category: 'Conteúdo Clínico',
+    item: 'Sepse: limiar de noradrenalina para associar vasopressina',
+    guidelineReference: 'SSC 2026',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'A versão anterior fixava 0,25 mcg/kg/min; a guideline fala em adicionar vasopressina em vez de escalar a noradrenalina (faixa habitual 0,25–0,5). Texto ajustado e marcado VERIFICAR.',
+    acaoNecessaria: 'Confirmar o limiar no texto de 2026.',
+    arquivo: 'data/mock-protocols.ts',
+  },
+  {
+    id: 'audit-nste-p2y12',
+    category: 'Conteúdo Clínico',
+    item: 'SCA sem supra: momento do inibidor de P2Y12 e dose do AAS',
+    guidelineReference: 'ESC 2023; ACC/AHA 2025 (conferir)',
+    status: 'ATENCAO_CRITICA',
+    notes:
+      'A versão anterior prescrevia dupla antiagregação imediata em todos os casos, o que conflita com a ESC 2023 (não recomenda pré-tratamento de rotina com P2Y12 quando se planeja estratégia invasiva precoce com anatomia desconhecida). Texto ajustado para condicional; as doses do AAS ficaram sem valor até serem conferidas.',
+    acaoNecessaria: 'Definir a conduta de P2Y12 conforme a guideline adotada pelo serviço e preencher a dose do AAS com fonte.',
+    arquivo: 'data/mock-protocols.ts',
+  },
+  {
+    id: 'audit-pac-update',
+    category: 'Conteúdo Clínico',
+    item: 'PAC: incorporação da atualização ATS 2025',
+    guidelineReference: 'ATS 2025 (atualização parcial) e ATS/IDSA 2019',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Incluídos: ultrassom pulmonar como alternativa diagnóstica, duração de 3 a 5 dias em PAC não grave estável (condicional) e regras de corticoide (forte contra em não grave; restrito à PAC grave internada), com alerta de controvérsia. Referências por autor foram trocadas por nomes das guidelines.',
+    acaoNecessaria: 'Revisar o texto e acrescentar a diretriz brasileira vigente (SBPT/SBI).',
+    arquivo: 'data/mock-protocols.ts',
+  },
+  {
+    id: 'audit-pac-antimicrobials',
+    category: 'Dose de Fármaco',
+    item: 'PAC: antimicrobianos ainda não cadastrados no registro de fármacos',
+    guidelineReference: 'ATS/IDSA 2019 e bula',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'Ceftriaxona, azitromicina, amoxicilina e levofloxacino não têm regime no registro; o motor devolve "NÃO CALCULADO" em vez de usar doses digitadas em texto.',
+    acaoNecessaria: 'Cadastrar e validar na Fase 1, com ajuste renal e alerta de QT.',
+    arquivo: 'data/farmacos.ts',
+  },
+  {
+    id: 'audit-references-policy',
+    category: 'Conteúdo Clínico',
+    item: 'Política de referências: apenas guidelines oficiais',
+    guidelineReference: 'Regra do projeto (prompt v2)',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes: 'Referências por autor individual nos protocolos foram trocadas por nome, sociedade e ano da guideline. Ainda restam citações por autor em scores.ts e nos comentários do código antigo.',
+    acaoNecessaria: 'Aplicar a mesma política em scores.ts.',
+    arquivo: 'data/mock-protocols.ts, data/scores.ts',
+  },
+
+  // ---------------------------- Software e produto ---------------------------
+  {
+    id: 'audit-validation-flags',
+    category: 'Segurança do Software',
+    item: 'Nenhum dado clínico marcado como VALIDADO sem revisão humana',
+    guidelineReference: 'Processo de validação clínica',
+    status: 'VERIFICADO_POR_TESTE',
+    notes: 'Teste automatizado falha se algum preset ou fármaco for marcado VALIDADO. A mudança para VALIDADO exige remover esse teste conscientemente, após revisão assinada.',
+    acaoNecessaria: 'Definir quem assina e como a data de revisão é registrada.',
+    testeAutomatizado: ['Presets e registro - invariantes de dados'],
+    arquivo: 'data/farmacos.ts, lib/infusion.ts',
+  },
+  {
+    id: 'audit-pwa-version',
+    category: 'Segurança do Software',
+    item: 'Atualização do PWA e versão do conteúdo clínico visível',
+    guidelineReference: 'Segurança do software',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'registerType "prompt" já foi aplicado e a data de revisão aparece em cada protocolo. Porém o aviso de atualização é manual e o botão "Atualizar" não ativa o service worker em espera: o usuário pode continuar com doses antigas após recarregar (ver item audit-ui-pwa-update).',
+    acaoNecessaria: 'Aplicar a configuração e confirmar que a versão aparece na interface.',
+    arquivo: 'vite.config.ts',
+  },
+  {
+    id: 'audit-privacy',
+    category: 'Segurança do Software',
+    item: 'Nenhum dado de paciente armazenado ou enviado (LGPD)',
+    guidelineReference: 'LGPD',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'Os motores não persistem nada. Busca no código da interface (src/): sem localStorage, sessionStorage, cookies, fetch ou uso de @google/genai; o contexto do paciente fica só em memória. Restam dependências e configurações de IA sem uso (ver item audit-ui-gemini-remnants) e o texto copiado/impresso, que contém dados do paciente por decisão do usuário.',
+    acaoNecessaria: 'Auditar os componentes de UI e o texto copiado para a área de transferência.',
+    arquivo: 'componentes de UI',
+  },
+  {
+    id: 'audit-regulatory',
+    category: 'Segurança do Software',
+    item: 'Enquadramento regulatório antes de divulgar o aplicativo',
+    guidelineReference: 'Regulamentação da ANVISA sobre software como dispositivo médico',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'Software de apoio à decisão clínica pode exigir enquadramento regulatório conforme a finalidade declarada e o público. Não divulgar como ferramenta de uso clínico real antes dessa análise.',
+    acaoNecessaria: 'Consultar assessoria regulatória e definir o texto de finalidade de uso.',
+  },
+
+  // ----------------- Achados da revisão da interface (src/) ------------------
+  {
+    id: 'audit-ui-reverse-calc',
+    category: 'Dose de Fármaco',
+    item: 'Cálculo reverso (mL/h → dose) da interface usa a fórmula de mcg/kg/min para TODOS os fármacos',
+    guidelineReference: 'Análise dimensional',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Com vasopressina (9 mL/h, dose real 0,03 UI/min) a interface mostra 0 UI/min; com nitroglicerina (3 mL/h, dose real 10 mcg/min) mostra 0,143 mcg/min. Só a noradrenalina e a dobutamina saem corretas. O motor agora tem calculateDoseFromRate(preset, taxa, peso), testado para todos os presets.',
+    acaoNecessaria: 'Testar no aparelho: vasopressina a 9 mL/h deve mostrar 0,03 UI/min e nitroglicerina a 3 mL/h, 10 mcg/min. Corrigido na 3ª versão do projeto (verificado por leitura do código).',
+    testeAutomatizado: ['Infusão - cálculo reverso genérico (corrige a conversão da interface)'],
+    arquivo: 'src/components/calculators/CalculatorSheet.tsx, lib/infusion.ts',
+  },
+  {
+    id: 'audit-ui-score-incomplete',
+    category: 'Estratificação de Risco',
+    item: 'ScoreCard exibe resultado com critérios não respondidos',
+    guidelineReference: 'Segurança do paciente (subtriagem)',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Ao abrir, o CURB-65 já mostra "baixo risco" com a ureia nunca avaliada, e o HEART marca 0 pontos em todos os itens (a opção "0" aparece selecionada sem o usuário escolher). Critério não respondido deve aparecer como "não avaliado", e o resultado só como parcial ou final quando todos tiverem resposta explícita.',
+    acaoNecessaria: 'Testar no aparelho: CURB-65 sem responder a ureia deve mostrar "Pontuação INCOMPLETA" e nenhuma estratificação. Corrigido na 3ª versão (verificado por leitura do código).',
+    arquivo: 'src/components/scores/ScoreCard.tsx',
+  },
+  {
+    id: 'audit-ui-score-prefill',
+    category: 'Estratificação de Risco',
+    item: 'Pré-preenchimento dos scores a partir do perfil do paciente',
+    guidelineReference: 'Segurança do paciente',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Os valores pré-preenchidos não acompanham mudanças do perfil (o estado manual anterior prevalece sobre o novo), então um critério marcado pelo caso "choque" continua marcado ao carregar um paciente eutrófico. O preenchimento também não é identificado como automático, e usa GCS < 15 como substituto de "confusão", que não é equivalente.',
+    acaoNecessaria: 'Testar no aparelho: trocar de caso de exemplo e conferir que as sugestões mudam sem sobrescrever respostas manuais. Corrigido na 3ª versão (verificado por leitura do código).',
+    arquivo: 'src/components/scores/ScoreCard.tsx',
+  },
+  {
+    id: 'audit-ui-default-patient',
+    category: 'Segurança do Software',
+    item: 'Paciente padrão pré-preenchido (65 anos, 70 kg, creatinina 1,0) gera doses e conduta ao abrir o app',
+    guidelineReference: 'Prevenção de erro de medicação',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Um usuário que não preencher o perfil recebe taxas de infusão e conduta para um paciente fictício, sem aviso. Os casos de exemplo (choque, renal, idoso) também não são identificados como fictícios.',
+    acaoNecessaria: 'Testar no aparelho o bloqueio de calculadoras e conduta sem confirmação. Resíduo: Home ("Paciente Ativo", PAM, TFG), página de protocolo ("Perfil: kg") e Navbar ainda exibem o paciente não confirmado.',
+    arquivo: 'src/context/PatientContext.tsx, src/components/ui/PatientDrawer.tsx',
+  },
+  {
+    id: 'audit-ui-validation-badge',
+    category: 'Conteúdo Clínico',
+    item: 'Selo verde "Validado" exibido para recomendações apenas CONFIRMADAS',
+    guidelineReference: 'Processo de validação clínica',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'statusRecomendacao "CONFIRMADA" significa que a existência e os pontos-chave da guideline foram conferidos, não que um médico validou o conteúdo. A interface mostra "Validado — conteúdo e dosagens confirmadas por guideline médica", o que passa uma garantia que não existe. Só validacaoClinica "VALIDADO" (assinado por revisor) pode mostrar esse selo.',
+    acaoNecessaria: 'Conferir os rótulos nas páginas de protocolo e de conduta. Corrigido na 3ª versão (verificado por leitura do código).',
+    arquivo: 'src/components/ui/ResultBadge.tsx',
+  },
+  {
+    id: 'audit-ui-pwa-update',
+    category: 'Segurança do Software',
+    item: 'Atualização do PWA: botão "Atualizar" não ativa o service worker em espera; "offline pronto" nunca aparece',
+    guidelineReference: 'Segurança do software (doses desatualizadas)',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Com registerType "prompt", a nova versão fica em espera até todas as abas fecharem; recarregar a página mantém o conteúdo antigo. O estado offlineReady nunca é definido, então o usuário não é avisado de que o app funciona offline.',
+    acaoNecessaria: 'Testar no aparelho: instalar, ficar offline, publicar uma versão nova e atualizar. useRegisterSW aplicado (verificado por leitura do código).',
+    arquivo: 'src/components/layout/PwaPrompt.tsx, vite.config.ts',
+  },
+  {
+    id: 'audit-ui-gemini-remnants',
+    category: 'Segurança do Software',
+    item: 'Restos de configuração de IA no projeto (@google/genai, express, dotenv, GEMINI_API_KEY, metadata.json)',
+    guidelineReference: 'Regra do projeto (prompt v2): sem IA em tempo de execução',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'O código não chama IA, mas package.json lista @google/genai, express e dotenv, .env.example declara GEMINI_API_KEY e metadata.json declara a capacidade MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API. O script "clean" ainda remove server.js.',
+    acaoNecessaria: 'Remoção aplicada em package.json, metadata.json e .env.example; o arquivo de lock também não contém @google/genai, express nem dotenv.',
+    arquivo: 'package.json, .env.example, metadata.json',
+  },
+  {
+    id: 'audit-ui-render-effects',
+    category: 'Segurança do Software',
+    item: 'setState dentro de useMemo (CalculatorSheet)',
+    guidelineReference: 'Boas práticas de React',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes: 'Os erros de TFG, infusão e cálculo reverso são gravados em estado dentro do useMemo, causando renderizações extras e avisos do React.',
+    acaoNecessaria: 'Aplicado na 3ª versão (verificado por leitura do código); conferir ausência de avisos do React no console.',
+    arquivo: 'src/components/calculators/CalculatorSheet.tsx',
+  },
+  {
+    id: 'audit-ts-strict',
+    category: 'Segurança do Software',
+    item: 'tsconfig sem "strict": true e sem script de teste',
+    guidelineReference: 'Qualidade de software',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'Sem modo estrito, erros de tipo (null/undefined) passam despercebidos. O package.json não tem o script "test" para o Vitest.',
+    acaoNecessaria: 'Já aplicados: strict e script de teste. Rodar localmente npm run lint e npm test e corrigir o que o tsc apontar.',
+    arquivo: 'tsconfig.json, package.json',
+  },
+  {
+    id: 'audit-conduct-scores',
+    category: 'Conteúdo Clínico',
+    item: 'A conduta gerada não depende do resultado dos scores',
+    guidelineReference: 'Prompt v2 (conduta após scores e calculadoras)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes: 'generateStratifiedConduct usa só o perfil do paciente e o protocolo; o resultado do CURB-65, por exemplo, não muda o local de tratamento sugerido nem a gravidade do esquema.',
+    acaoNecessaria: 'Na Fase 1, passar os resultados dos scores ao motor e escolher o ramo da conduta (ambulatorial, enfermaria, UTI) por regra.',
+    arquivo: 'lib/conduta-engine.ts, data/mock-protocols.ts',
+  },
+
+  // ------------- Achados da revisão da Fase 1 (PAC: scores e protocolo) -------------
+  {
+    id: 'audit-psi-age',
+    category: 'Estratificação de Risco',
+    item: 'PSI/PORT sem pontos de idade e sexo',
+    guidelineReference: 'Pneumonia Severity Index (regra de Fine) — conferir na publicação original',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'lib/scores-engine.ts soma os pontos demográficos do paciente confirmado (homem = idade; mulher = idade − 10). Verificado: homem de 85 anos sem outros critérios = 85 (classe III); mulher de 90 anos = 80 (classe III); sem paciente confirmado o escore fica incompleto. As faixas passaram a 0–70, 71–90, 91–130 e acima de 130.',
+    acaoNecessaria: 'O revisor confere a regra de pontuação e as faixas na publicação original do PSI (Fine) e decide se a classe I (idade ≤ 50 sem comorbidades) deve ser separada da classe II.',
+    testeAutomatizado: ['tests/scores-engine.test.ts'],
+    arquivo: 'data/scores.ts, src/components/scores/ScoreCard.tsx',
+  },
+  {
+    id: 'audit-news2-rules',
+    category: 'Estratificação de Risco',
+    item: 'NEWS2: regra de parâmetro isolado e frequência de monitorização',
+    guidelineReference: 'Royal College of Physicians, NEWS2 (2017) — conferir no documento',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Regra do parâmetro isolado implementada (3 pontos em uma variável com total < 5 gera aviso e resposta urgente). Faixas separadas: 0 = a cada 12 h; 1–4 = a cada 4–6 h; 5–6 = resposta urgente, a cada 1 h; ≥ 7 = emergência. O aviso da Escala 2 de SpO2 aparece na descrição do escore.',
+    acaoNecessaria: 'Conferir as frequências e a redação contra o documento do NEWS2 do Royal College of Physicians (2017) e implementar a Escala 2 antes de usar em hipercapnia crônica.',
+    testeAutomatizado: ['tests/scores-engine.test.ts'],
+    arquivo: 'data/scores.ts, src/components/scores/ScoreCard.tsx',
+  },
+  {
+    id: 'audit-ui-calc-fallback',
+    category: 'Dose de Fármaco',
+    item: 'Calculadora da página de PAC cai silenciosamente no preset de noradrenalina',
+    guidelineReference: 'Segurança do paciente (erro de medicação)',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Sem preset para o fármaco, a aba mostra "Sem calculadora de dose validada para este fármaco" e não cai em outro preset. Com associatedDrugs vazio (PAC), a página de protocolo mostra "Sem calculadora de dose validada para este protocolo" e oculta a calculadora de infusão.',
+    acaoNecessaria: 'Testar no aparelho as páginas de PAC (sem calculadora), TEP (sem preset) e de um protocolo com preset.',
+    arquivo: 'src/components/calculators/CalculatorSheet.tsx, src/pages/ProtocolPage.tsx',
+  },
+  {
+    id: 'audit-pac-drugs-unregistered',
+    category: 'Dose de Fármaco',
+    item: 'Protocolo de PAC lista 4 antimicrobianos que não estão no registro',
+    guidelineReference: 'ATS/IDSA 2019 e bula',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'associatedDrugs referencia ceftriaxona, azitromicina, amoxicilina e levofloxacino, mas data/farmacos.ts continua só com 4 fármacos (noradrenalina, dobutamina, vasopressina, enoxaparina). Não foi inventada nenhuma dose, o que está correto, mas os ids ficaram soltos.',
+    acaoNecessaria: 'Manter associatedDrugs vazio até haver regime confirmado, ou cadastrar os fármacos com fonte e validação pendente.',
+    arquivo: 'data/mock-protocols.ts, data/farmacos.ts',
+  },
+  {
+    id: 'audit-scores-tests',
+    category: 'Segurança do Software',
+    item: 'Testes dos novos scores conferem só a estrutura, não a pontuação',
+    guidelineReference: 'Qualidade de software',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'Há agora testes de pontuação para PSI, NEWS2 e ATS/IDSA (tests/scores-engine.test.ts), que usam funções puras. Os demais escores (CURB-65, HEART, qSOFA, Wells, TIMI, GRACE e os de fases 2–5) continuam com testes apenas estruturais.',
+    acaoNecessaria: 'Estender os testes de pontuação com casos clínicos de referência aos demais escores.',
+    testeAutomatizado: ['tests/scores-engine.test.ts'],
+    arquivo: 'tests/pac-scores.test.ts',
+  },
+  {
+    id: 'audit-scores-provenance',
+    category: 'Conteúdo Clínico',
+    item: 'Fontes e afirmações sem lastro nos novos scores e protocolo',
+    guidelineReference: 'Regra do projeto: apenas guidelines oficiais, sem autores individuais',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Referências por autor (Fine, Metlay, Lim), a atribuição "padronizado BTS/SBPT" e a frase de mortalidade sem fonte foram removidas de scores.ts e dos protocolos, e o item pac-1 voltou para VERIFICAR.',
+    acaoNecessaria: 'Conferir se restam referências por autor em outros escores e comentários do código.',
+    arquivo: 'data/scores.ts, data/mock-protocols.ts',
+  },
+
+  // --------- Achados da revisão das Fases 2 a 5 (geradas sem revisão intermediária) ---------
+  {
+    id: 'audit-phases-runahead',
+    category: 'Conteúdo Clínico',
+    item: 'Fases 2 a 5 geradas de uma vez, sem revisão: 10 protocolos novos e 14 escores novos',
+    guidelineReference: 'Processo do projeto (uma fase por vez, com revisão antes de "continuar")',
+    status: 'ATENCAO_CRITICA',
+    notes:
+      'O Gemini avançou do piloto de PAC até a página "Sobre" sem aguardar revisão. Entraram TEP, PCR, taquiarritmias, bradiarritmias, edema agudo de pulmão, emergência hipertensiva, HAP/VAP, pielonefrite, CAD/EHH e distúrbios hidroeletrolíticos. Nenhum desses conteúdos foi revisado por médico. Uma amostra de cerca de 30 doses de adulto (epinefrina, amiodarona, atropina, adenosina, alteplase, furosemida, nitroglicerina e outras) parecia coerente com referências habituais de suporte avançado de vida, mas não foi conferida contra as edições de 2025/2026.',
+    acaoNecessaria: 'Revisão médica protocolo por protocolo, conferindo cada dose, ponto de corte e tempo-alvo com o texto da guideline antes de qualquer uso.',
+    arquivo: 'data/mock-protocols.ts, data/scores.ts',
+  },
+  {
+    id: 'audit-status-self-certified',
+    category: 'Conteúdo Clínico',
+    item: 'Recomendações auto-rotuladas como CONFIRMADA sem conferência',
+    guidelineReference: 'Processo de validação clínica',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'O Gemini marcou 63 recomendações e 27 guidelines como CONFIRMADA, e a interface exibe "Guideline conferida" para elas. Ninguém conferiu. O patch 4 devolveu para VERIFICAR 60 recomendações e 20 guidelines. Depois, 1 recomendação (o item pac-1, conferido no texto da SBPT 2009) e 1 guideline (SBPT 2009) voltaram a CONFIRMADA, o que dá 17 recomendações (SSC 2026, ATS 2025, SBPT 2009 e, na AHA 2025, itens de PCR, taquiarritmias e bradiarritmias conferidos no texto original) e 11 guidelines.',
+    acaoNecessaria: 'O revisor muda cada item para CONFIRMADA somente após conferir o texto original.',
+    arquivo: 'data/mock-protocols.ts',
+  },
+  {
+    id: 'audit-engine-authored-dose',
+    category: 'Dose de Fármaco',
+    item: 'Dose digitada no texto do protocolo passava direto para a prescrição (ex.: alteplase "100 mg")',
+    guidelineReference: 'Prompt v2: doses só do registro de fármacos',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'O motor só bloqueava fármacos fora do registro quando o campo de dose estava vazio. O protocolo de TEP trazia "100 mg" e "100 mg em 100 mL" digitados, que eram exibidos como prescrição calculada. Agora o motor ignora qualquer dose digitada e devolve "NÃO CALCULADO" para fármaco sem regime no registro.',
+    acaoNecessaria: 'Cadastrar alteplase e demais fármacos no registro, com fonte e validação, antes de esperar que saiam calculados.',
+    testeAutomatizado: ['Conduta - cálculo de doses (dose digitada é descartada)'],
+    arquivo: 'lib/conduta-engine.ts',
+  },
+  {
+    id: 'audit-drugs-text-only',
+    category: 'Dose de Fármaco',
+    item: 'Doses dos protocolos novos existem só em texto livre; o registro continua com 4 fármacos',
+    guidelineReference: 'Prompt v2: doses centralizadas no registro, com fonte e status',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'Adrenalina, amiodarona, atropina, adenosina, alteplase, heparina não fracionada, insulina, potássio, solução salina a 3%, antimicrobianos e outros aparecem apenas dentro de textos de conduta, sem fonte por dose, sem ajuste renal e sem alerta de alta vigilância. Além disso, as páginas de alguns protocolos oferecem a calculadora de fármacos do registro (por exemplo, noradrenalina na página de CAD/EHH) mesmo sem relação com a terapia da patologia.',
+    acaoNecessaria: 'Decidir quais fármacos entram no registro e quais ficam apenas como texto de referência, e restringir a calculadora de cada página aos fármacos pertinentes.',
+    arquivo: 'data/mock-protocols.ts, data/farmacos.ts',
+  },
+  {
+    id: 'audit-pediatric-scope',
+    category: 'Segurança do Software',
+    item: 'Protocolo de PCR inclui doses pediátricas, mas o software valida apenas adultos',
+    guidelineReference: 'AHA 2025 e ERC 2025 (suporte avançado de vida pediátrico)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'Decisão do revisor: escopo adulto e pediátrico. Os motores de adulto continuam recusando idade < 18 anos e peso < 30 kg de propósito (há testes que garantem isso). O módulo pediátrico é separado (lib/pediatric.ts) e, por ora, cobre apenas a parada cardiorrespiratória pediátrica. Faltam: interface pediátrica, TFG pediátrica (Schwartz à beira-leito), escore de alerta pediátrico, demais fármacos e demais protocolos.',
+    acaoNecessaria: 'Ampliar o módulo por etapas, cada uma com fonte e testes: interface pediátrica, atropina/adenosina/cardioversão, TFG pediátrica, escore de alerta pediátrico e sepse pediátrica.',
+    arquivo: 'data/mock-protocols.ts, lib/validation.ts',
+  },
+  {
+    id: 'audit-phases-tests',
+    category: 'Segurança do Software',
+    item: 'Testes das Fases 1 a 5 (54 testes) verificam cadastro e estrutura, não a pontuação clínica',
+    guidelineReference: 'Qualidade de software',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'Os testes conferem presença de escores, número de critérios e faixas de interpretação. Nenhum calcula uma pontuação a partir de respostas e confere o resultado, por isso não detectam erros como a falta de pontos de idade no PSI. Todos passam, o que transmite uma segurança que não existe.',
+    acaoNecessaria: 'Criar funções puras de soma e interpretação e testes com casos clínicos de referência para cada escore.',
+    arquivo: 'tests/*.test.ts',
+  },
+  {
+    id: 'audit-docs-claims',
+    category: 'Conteúdo Clínico',
+    item: 'CHANGELOG-CLINICO.md e página "Sobre" afirmam fonte exclusiva em guidelines oficiais e rastreabilidade completa',
+    guidelineReference: 'Honestidade sobre o estado de validação',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'O CHANGELOG-CLINICO.md e a página "Sobre" agora dizem "Conteúdo em validação: rascunho não revisado, não use para decisões clínicas".',
+    acaoNecessaria: 'Manter essa redação até a assinatura do revisor.',
+    arquivo: 'CHANGELOG-CLINICO.md, src/pages/AboutPage.tsx',
+  },
+
+  {
+    id: 'audit-ui-calc-no-filter',
+    category: 'Dose de Fármaco',
+    item: 'Páginas de protocolo sem fármaco associado listam todos os presets de infusão',
+    guidelineReference: 'Segurança do paciente (erro de medicação)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'Corrigido para a lista vazia (PAC). Resta o caso inverso: em vários protocolos o único fármaco associado é a noradrenalina, mesmo quando ela não é a terapia da patologia (por exemplo, CAD/EHH), e a calculadora a oferece.',
+    acaoNecessaria: 'Rever, protocolo por protocolo, quais presets fazem sentido na página.',
+    arquivo: 'src/pages/ProtocolPage.tsx, data/mock-protocols.ts',
+  },
+
+  {
+    id: 'audit-sbpt-vs-ats',
+    category: 'Conteúdo Clínico',
+    item: 'PAC: o app combina duas fontes com regras diferentes (SBPT 2009 e ATS/IDSA/ATS 2025)',
+    guidelineReference: 'SBPT 2009; ATS/IDSA 2019; ATS 2025',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'PAC grave: a SBPT indica UTI com 1 critério maior ou 2 de 3 menores (hipotensão, PaO2/FiO2 < 250, infiltrado multilobar); o escore ATS/IDSA do app tem 9 menores e exige 3. Duração: a SBPT considera suficiente até 7 dias (evidência A), a ATS 2025 sugere 3 a 5 dias em PAC não grave estável. Corticoide: a SBPT admite hidrocortisona em PAC grave com choque dependente de vasopressor; a ATS 2025 tem regras próprias. Do documento da SBPT não devem ser importados, por estarem desatualizados, as metas de reanimação em 6 h por PVC e SvcO2, a proteína C ativada e a vacinação antipneumocócica apenas com polissacarídeo de 23 sorotipos. Confirmar também se a SBPT publicou edição posterior a 2009.',
+    acaoNecessaria: 'Rotular cada regra com a sua fonte na interface, definir a política do serviço quando as fontes divergem e conferir a existência de edição mais recente da SBPT.',
+    arquivo: 'data/scores.ts, data/mock-protocols.ts',
+  },
+
+  // ----------------------------- Módulo pediátrico ------------------------------
+  {
+    id: 'audit-ped-arrest-doses',
+    category: 'Dose de Fármaco',
+    item: 'PCR pediátrica: epinefrina, amiodarona, lidocaína e energia de choque por peso',
+    guidelineReference: 'PALS 2025 (AHA/AAP): algoritmo de parada cardíaca pediátrica e cartão de bolso',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'Conferidos no texto original da AHA/AAP 2025 (Parte 8, Figura 2 e recomendações de desfibrilação): epinefrina 0,01 mg/kg da solução de 0,1 mg/mL com dose máxima de 1 mg; amiodarona 5 mg/kg com máximo de 300 mg e até 3 doses, com máximo de 150 mg nas seguintes; lidocaína 1 mg/kg; choques de 2 J/kg, 4 J/kg e depois de 4 até 10 J/kg ou a dose máxima de adulto. A repetição (0,5 mg/kg) e a manutenção (20 a 50 mcg/kg/min) da lidocaína foram RETIRADAS: vinham de um cartão de bolso e não constam do algoritmo nem do texto da Parte 8. Foram acrescentadas orientações do algoritmo (15:2, PAD alvo, EtCO2, PA pós-PCR). Validação clínica continua pendente.',
+    acaoNecessaria: 'O revisor confirma os valores, define o número da dose de adulto do desfibrilador do serviço e decide se deseja a lidocaína de repetição por outra fonte.',
+    testeAutomatizado: ['PCR pediátrica - valores de referência', 'PCR pediátrica - lactente e tetos'],
+    arquivo: 'lib/pediatric.ts',
+  },
+  {
+    id: 'audit-ped-weight-ranges',
+    category: 'Segurança do Software',
+    item: 'Faixas de plausibilidade de peso por faixa etária e origem do peso',
+    guidelineReference: 'Segurança do paciente (erro de dose por peso digitado errado)',
+    status: 'PENDENTE_REVISAO_MEDICA',
+    notes:
+      'O módulo exige a idade em meses e a origem do peso (medido ou estimado), recusa pesos fora da faixa da idade (por exemplo, 70 kg num lactente de 3 meses, ou 7 kg em criança de 11 anos) e avisa quando o peso é estimado. As faixas são largas de propósito e servem só para detectar erro de digitação.',
+    acaoNecessaria: 'Aprovar ou ajustar as faixas em PEDIATRIC_AGE_BANDS e decidir se haverá estimativa de peso por comprimento (fita) no app.',
+    testeAutomatizado: ['Módulo pediátrico - entradas inválidas são recusadas'],
+    arquivo: 'lib/pediatric.ts',
+  },
+  {
+    id: 'audit-ped-ui-missing',
+    category: 'Segurança do Software',
+    item: 'Interface pediátrica (PCR pediátrica)',
+    guidelineReference: 'Prompt v2',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Criada: PediatricContext separado do paciente adulto, paciente pediátrico não confirmado ao abrir (e desconfirmado a cada edição), doses e choques ocultos sem confirmação, erros do motor exibidos, faixa "Rascunho não revisado", nota de escopo, "Como calculei" e selos de fonte. Enquanto o paciente pediátrico está confirmado, as calculadoras e a conduta de adulto mostram "Paciente pediátrico: use o módulo pediátrico". A lógica de dose continua só em lib/pediatric.ts, sem doses digitadas na página.',
+    acaoNecessaria: 'Testar no aparelho o bloqueio sem confirmação e o bloqueio das calculadoras de adulto, e resolver os itens audit-ped-ui-defaults.',
+    arquivo: 'src/',
+  },
+  {
+    id: 'audit-ped-protocol-text',
+    category: 'Conteúdo Clínico',
+    item: 'Texto pediátrico do protocolo de PCR (escrito pelo Gemini) pode divergir do módulo',
+    guidelineReference: 'PALS 2025 (AHA/AAP)',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'As doses pediátricas do protocolo de PCR (epinefrina, amiodarona, lidocaína e energias) foram alinhadas ao algoritmo AHA/AAP 2025 lido no texto original. Atropina, adenosina, cardioversão sincronizada, bicarbonato, cálcio e fluidos pediátricos continuam fora do módulo e saem como NÃO CALCULADO.',
+    acaoNecessaria: 'Remover do texto o que o módulo já calcula, ou apontar para ele; conferir o restante do conteúdo pediátrico.',
+    arquivo: 'data/mock-protocols.ts',
+  },
+
+  {
+    id: 'audit-ped-ui-defaults',
+    category: 'Segurança do Software',
+    item: 'Interface pediátrica abre com paciente de exemplo (4 anos, 15 kg) e origem do peso já marcada como "medido"',
+    guidelineReference: 'Prevenção de erro de medicação por peso',
+    status: 'ATENCAO_CRITICA',
+    notes:
+      'O motor exige a origem do peso, mas a tela já vem com "medido", o que suprime o aviso de peso estimado e pode ser confirmado com um toque sem a pessoa ter pesado a criança. Os campos de idade e peso também vêm preenchidos sem aviso de caso de exemplo. Além disso, os cartões de dose e de choque não mostram o selo "Pendente de validação" (só o rótulo de fonte), e o selo de recomendação conferida aparece em verde, o que pode sugerir aprovação.',
+    acaoNecessaria: 'Abrir com idade, peso e origem em branco (origem sem seleção), exigir escolha explícita, mostrar "Pendente de validação" em cada cartão e usar cor neutra (azul) para "Guideline conferida (sem validação médica)".',
+    arquivo: 'src/context/PediatricContext.tsx, src/pages/PediatricArrestPage.tsx',
+  },
+
+  {
+    id: 'audit-aha2025-highlights',
+    category: 'Conteúdo Clínico',
+    item: 'PCR, taquiarritmias e bradiarritmias conferidas contra o texto original da AHA 2025 (Partes 1, 8 e 9)',
+    guidelineReference: 'AHA 2025 Guidelines for CPR and ECC (Circulation, outubro de 2025): documento de destaques em português',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Lidos na íntegra: Parte 1 (resumo executivo), Parte 8 (SAV pediátrico) e Parte 9 (SAV em adultos), incluindo as figuras dos algoritmos. Confirmados: compressões de 100 a 120/min, 5 cm ou mais, 30:2 e 1 ventilação a cada 6 s; epinefrina 1 mg a cada 3 a 5 min (COR 2a), no ciclo após o 2º choque nos ritmos chocáveis e o mais cedo possível nos não chocáveis; amiodarona 300/150 mg ou lidocaína 1 a 1,5 mg/kg e 0,5 a 0,75 mg/kg após o 3º choque; energias de cardioversão (FA 200 J, flutter 200 J, taquicardia estreita 100 J, TV monomórfica 100 J); adenosina 6 e 12 mg; amiodarona 150 mg em 10 min; procainamida com dose máxima de 17 mg/kg; atropina 1 mg até 3 mg; dopamina 5 a 20 mcg/kg/min e epinefrina 2 a 10 mcg/min. Corrigidos: (1) ERRO GRAVE, o app preferia betabloqueador EV na FA com insuficiência cardíaca de fração reduzida, e a AHA 2025 classifica betabloqueador EV e bloqueador de canal de cálcio como dano (COR 3) nessa situação descompensada; (2) lidocaína removida como alternativa na TV monomórfica estável, que a AHA não lista (amiodarona, procainamida ou sotalol, COR 2b); (3) incluídos os avisos de dano: verapamil e diltiazem na taquicardia de complexo largo, e adenosina na complexa instável, irregular ou polimórfica; (4) fármacos a evitar na FA com pré-excitação ampliados (digoxina, bloqueador de cálcio, betabloqueador e amiodarona EV); (5) SpO2 pós-RCE de 90 a 98%, controle de temperatura de 32 a 37,5 °C por pelo menos 36 h, sem vasopressor específico; (6) tempos-alvo e limiares sem base foram retirados (EtCO2 abaixo de 10 mmHg, "menos de 2 minutos", "menos de 5 minutos"). Não lidos: Parte 10 (situações especiais) e Parte 11 (cuidados pós-PCR), usados só pelas citações do resumo executivo.',
+    acaoNecessaria: 'Conferir no texto completo as Partes 10 e 11, as doses de sedativos, a dose do magnésio na torsades, a manutenção da amiodarona após 6 horas e as doses de bloqueadores de cálcio e betabloqueadores na FA; a ERC 2025 segue pendente.',
+    testeAutomatizado: ['tests/fase3-cardiovascular.test.ts'],
+    arquivo: 'data/mock-protocols.ts',
+  },
+
+  {
+    id: 'audit-tep-2026',
+    category: 'Conteúdo Clínico',
+    item: 'TEP conferido contra a guideline AHA/ACC multissociedade 2026 (texto original)',
+    guidelineReference: 'AHA/ACC 2026: Guideline for the Evaluation and Management of Acute Pulmonary Embolism in Adults',
+    status: 'CORRIGIDO_AGUARDA_REVISAO',
+    notes:
+      'Confirmados: PERT nas categorias C a E (COR 1, B-NR); HBPM em vez de HNF nas categorias C1 a E1 que precisam de anticoagulação parenteral (COR 1, B-R); DOAC em vez de antagonista da vitamina K (COR 1, B-R); trombólise sistêmica razoável nas categorias E1 e E2 (COR 2a, C-LD), a considerar nas D1 e D2 (COR 2b) e contraindicada nas categorias A1 a C2 (COR 3: dano, B-R); alteplase 100 mg em 2 horas. Corrigido: o texto do app mandava reservar a HNF para candidatos a reperfusão e ClCr abaixo de 30, o que a guideline não diz; HBPM é preferida inclusive após trombólise ou terapia por cateter. A guideline lida não traz doses em mg/kg, então a dose de enoxaparina do registro segue sem fonte e a alteplase continua fora do registro (NÃO CALCULADO).',
+    acaoNecessaria: 'Conferir doses de HBPM e de HNF, critérios de tratamento ambulatorial, a abordagem diagnóstica (D-dímero ajustado por idade, YEARS) e os demais itens do protocolo contra o texto completo.',
+    arquivo: 'data/mock-protocols.ts',
+  },
+];
+
+/** Contagem por status, útil para o painel do revisor. */
+export function summarizeAudit(items: MedicalAuditItem[] = MEDICAL_AUDIT_CHECKLIST): Record<AuditStatus, number> {
+  const base: Record<AuditStatus, number> = {
+    VERIFICADO_POR_TESTE: 0,
+    CORRIGIDO_AGUARDA_REVISAO: 0,
+    PENDENTE_REVISAO_MEDICA: 0,
+    ATENCAO_CRITICA: 0,
+    VERIFICADO_PELO_MOTOR: 0,
+  };
+  items.forEach((i) => {
+    base[i.status] += 1;
+  });
+  return base;
+}
+===== END FILE =====

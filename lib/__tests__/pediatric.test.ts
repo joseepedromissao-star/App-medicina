@@ -68,10 +68,16 @@ describe('PCR pediátrica - avisos', () => {
   it('adolescente gera aviso para seguir a conduta de adulto se pós-puberal', () => {
     expect(calculatePediatricArrest(ped(180, 55)).warnings.join(' ')).toContain('ADOLESCENTE');
   });
-  it('lidocaína de repetição/manutenção fica marcada VERIFICAR; a de ataque, CONFIRMADA', () => {
+  it('lidocaína só tem dose de ataque: a repetição/manutenção não consta do algoritmo e foi retirada', () => {
     const r = calculatePediatricArrest(ped(48, 15));
-    expect(item(r, 'ped-lidocaina-repeticao-manutencao').statusRecomendacao).toBe('VERIFICAR');
+    expect(r.items.find((i) => i.id === 'ped-lidocaina-repeticao-manutencao')).toBeUndefined();
     expect(item(r, 'ped-lidocaina-ataque').statusRecomendacao).toBe('CONFIRMADA');
+  });
+  it('notas do algoritmo: relação 15:2, PAD alvo e EtCO2, todas com fonte', () => {
+    const r = calculatePediatricArrest(ped(48, 15));
+    expect(r.notes.map((n) => n.texto).join(' ')).toContain('15:2');
+    expect(r.notes.map((n) => n.texto).join(' ')).toContain('25 mmHg');
+    r.notes.forEach((n) => { expect(n.fonte.length).toBeGreaterThan(0); expect(n.validacaoClinica).toBe('PENDENTE'); });
   });
   it('nenhum resultado sai marcado como VALIDADO sem revisão médica', () => {
     const r = calculatePediatricArrest(ped(48, 15));
